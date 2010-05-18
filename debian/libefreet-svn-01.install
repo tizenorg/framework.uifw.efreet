@@ -1,0 +1,4 @@
+debian/tmp/usr/bin/efreet_desktop_cache_create
+debian/tmp/usr/lib/libefreet-*.so.*
+debian/tmp/usr/lib/libefreet_mime-*.so.*
+debian/tmp/usr/lib/libefreet_trash-*.so.*

@@ -1,0 +1,83 @@
+efreet (0.5.0.060+svn20100304slp2) unstable; urgency=low
+
+  * change package version
+
+ -- Jaehwan Kim <jae.hwan.kim@samsung.com>  Thu, 25 Mar 2010 15:57:00 +0900
+
+efreet (0.5.0.060+svn20100304-1) unstable; urgency=low
+
+  * EFL_update_revision_46864
+
+ -- Jaehwan Kim <jae.hwan.kim@samsung.com>  Wed, 10 Mar 2010 16:06:38 +0900
+
+efreet (0.5.0.060+svn20100203-3) unstable; urgency=low
+
+  * add debug package
+
+ -- Wonguk Jeong <wonguk.jeong@samsung.com>  Mon, 08 Feb 2010 15:23:40 +0900
+
+efreet (0.5.0.060+svn20100203-2) unstable; urgency=low
+
+  * repack
+
+ -- Jaehwan Kim <jae.hwan.kim@samsung.com>  Thu, 04 Feb 2010 20:31:41 +0900
+
+efreet (0.5.0.060+svn20100203-1) unstable; urgency=low
+
+  * EFL_update_revision_45828
+
+ -- Jaehwan Kim <jae.hwan.kim@samsung.com>  Wed, 03 Feb 2010 16:39:24 +0900
+
+efreet (0.5.0.060+svn20100119-1) unstable; urgency=low
+
+  * EFL_update_revision_45322
+
+ -- Jihoon Kim <jihoon48.kim@samsung.com>  Tue, 19 Jan 2010 20:44:50 +0900
+
+efreet (0.5.0.060+svn20100111-3) unstable; urgency=low
+
+  * reupload EFL i686
+
+ -- Jaehwan Kim <jae.hwan.kim@samsung.com>  Tue, 12 Jan 2010 17:35:48 +0900
+
+efreet (0.5.0.060+svn20100111-2) unstable; urgency=low
+
+  * reupload EFL
+
+ -- Jaehwan Kim <jae.hwan.kim@samsung.com>  Mon, 11 Jan 2010 22:17:14 +0900
+
+efreet (0.5.0.060+svn20100111-1) unstable; urgency=low
+
+  * update EFL revision 45026
+
+ -- Jaehwan Kim <jae.hwan.kim@samsung.com>  Mon, 11 Jan 2010 13:28:09 +0900
+
+efreet (0.5.0.060+svn20091229-1) unstable; urgency=low
+
+  * update EFL
+
+ -- Jaehwan Kim <jae.hwan.kim@samsung.com>  Tue, 29 Dec 2009 14:27:06 +0900
+
+efreet (0.5.0.060+svn20091112-2) unstable; urgency=low
+
+  * modify debian files
+
+ -- Sangho Park <sangho.g.park@samsung.com>  Fri, 27 Nov 2009 15:47:36 +0900
+
+efreet (0.5.0.060+svn20091112-1) unstable; urgency=low
+
+  * svn stable version
+
+ -- Sangho Park <sangho.g.park@samsung.com>  Fri, 13 Nov 2009 09:13:10 +0900
+
+efreet (0.5.0.060+svnYYYYMMDD-1) unstable; urgency=low
+
+  * Updated version
+
+ -- quaker <quaker66@gmail.com>  Thu, 22 Apr 2009 18:22:23 +0100
+
+efreet (0.5.0.050+svnYYYYMMDD-1) unstable; urgency=low
+
+  * Clean up changelog
+
+ -- quaker <quaker66@gmail.com>  Tue, 21 Apr 2009 19:16:49 +0100
