@@ -1,3 +1,11 @@
+efreet (0.5.0.060+svn.49545slp2+0) unstable; urgency=low
+
+  * Update opensource EFL from SVN
+  * SVN revision: 49545 (Total EFL revision: 49550)
+  * Tag: 0.5.0.060+svn.49545slp2+0
+
+ -- Daniel Juyung Seo <juyung.seo@smasung.net>  Thu, 10 Jun 2010 15:50:40 +0900
+
 efreet (0.5.0.060+svn20100304slp2) unstable; urgency=low
 
   * change package version
