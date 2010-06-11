@@ -1,7 +1,7 @@
 Source: efreet
 Section: libs
 Priority: optional
-Maintainer: Jaehwan Kim <jae.hwan.kim@samsung.com>, Jihoon Kim <jihoon48.kim@samsung.com>, Wonguk Jeong <wonguk.jeong@samsung.com>, Juyung Seo <juyung.seo@samsung.com>
+Maintainer: Jaehwan Kim <jae.hwan.kim@samsung.com>, Wonguk Jeong <wonguk.jeong@samsung.com>, Juyung Seo <juyung.seo@samsung.com>
 Original-Maintainer: Debian Pkg-e Team <pkg-e-devel@lists.alioth.debian.org>
 Uploaders: Albin Tonnerre <albin.tonnerre@gmail.com>,
  Xavier Oswald <x.oswald@free.fr>, Jan Lübbe <jluebbe@debian.org>
