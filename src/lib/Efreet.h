@@ -1,4 +1,3 @@
-/* vim: set sw=4 ts=4 sts=4 et: */
 #ifndef EFREET_H
 #define EFREET_H
 
@@ -59,8 +58,8 @@
 extern "C" {
 #endif
 
-#define EFREET_VERSION_MAJOR 0
-#define EFREET_VERSION_MINOR 5
+#define EFREET_VERSION_MAJOR 1
+#define EFREET_VERSION_MINOR 0
    
    typedef struct _Efreet_Version
      {

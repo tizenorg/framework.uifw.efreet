@@ -1,5 +1,3 @@
-/* vim: set sw=4 ts=4 sts=4 et: */
-
 #ifdef HAVE_CONFIG_H
 # include <config.h>
 #endif
@@ -108,7 +106,7 @@ efreet_xml_new(const char *file)
 
     error = 0;
     xml = efreet_xml_parse(&data, &size);
-    if (error) goto efreet_error;
+    if (!xml || error) goto efreet_error;
 
     munmap(data, size);
     close(fd);
@@ -458,6 +456,7 @@ efreet_xml_attributes_parse(char **data, int *size,
     }
 
     *attributes = NEW(Efreet_Xml_Attribute *, count + 1);
+    if (!*attributes) goto efreet_error;
     for (i = 0; i < count; i++)
     {
         (*attributes)[i] = malloc(sizeof(Efreet_Xml_Attribute));

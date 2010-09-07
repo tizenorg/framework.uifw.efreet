@@ -1,5 +1,3 @@
-/* vim: set sw=4 ts=4 sts=4 et: */
-
 /* TODO: Check where strcmp can be changed with == because of stringshare */
 
 #ifdef HAVE_CONFIG_H
@@ -274,11 +272,11 @@ static Efreet_Desktop *efreet_menu_directory_get(Efreet_Menu_Internal *internal,
                                                     const char *path);
 static void efreet_menu_process_filters(Efreet_Menu_Internal *internal,
                                             unsigned int only_unallocated);
-static Eina_List * efreet_menu_process_app_pool(Eina_List *pool,
-                                                Eina_List *applications,
-                                                Eina_Hash *matches,
-                                                Efreet_Menu_Filter *filter,
-                                                unsigned int only_unallocated);
+static Eina_List *efreet_menu_process_app_pool(Eina_List *pool,
+                                               Eina_List *applications,
+                                               Eina_Hash *matches,
+                                               Efreet_Menu_Filter *filter,
+                                               unsigned int only_unallocated);
 static int efreet_menu_filter_matches(Efreet_Menu_Filter_Op *op,
                                         Efreet_Menu_Desktop *md);
 static int efreet_menu_filter_or_matches(Efreet_Menu_Filter_Op *op,
@@ -400,7 +398,7 @@ efreet_menu_init(void)
 
     struct
     {
-        char *key;
+        const char *key;
         int (*cb)(Efreet_Menu_Internal *parent, Efreet_Xml *xml);
     } menu_cbs[] = {
         {"Menu", efreet_menu_handle_sub_menu},
@@ -429,7 +427,7 @@ efreet_menu_init(void)
 
     struct
     {
-        char *key;
+        const char *key;
         int (*cb)(Efreet_Menu_Filter_Op *op, Efreet_Xml *xml);
     } filter_cbs[] = {
         {"Filename", efreet_menu_handle_filename},
@@ -443,7 +441,7 @@ efreet_menu_init(void)
 
     struct
     {
-        char *key;
+        const char *key;
         int (*cb)(Efreet_Menu_Internal *parent, Efreet_Xml *xml);
     } move_cbs[] = {
         {"Old", efreet_menu_handle_old},
@@ -453,7 +451,7 @@ efreet_menu_init(void)
 
     struct
     {
-        char *key;
+        const char *key;
         int (*cb)(Efreet_Menu_Internal *parent, Efreet_Xml *xml, int def);
     } layout_cbs[] = {
         {"Menuname", efreet_menu_handle_layout_menuname},
@@ -702,6 +700,7 @@ efreet_menu_parse(const char *path)
 
     /* split appart the filename and the path */
     internal = efreet_menu_internal_new();
+    if (!internal) return NULL;
 
     /* Set default values */
     internal->show_empty = 0;
@@ -953,7 +952,7 @@ efreet_menu_dump(Efreet_Menu *menu, const char *indent)
         size_t len;
 
         len = strlen(indent) + 3;
-        new_indent = malloc(sizeof(char *) * len);
+        new_indent = alloca(len);
         snprintf(new_indent, len, "%s  ", indent);
 
         EINA_LIST_FOREACH(menu->entries, l, entry)
@@ -967,8 +966,6 @@ efreet_menu_dump(Efreet_Menu *menu, const char *indent)
             else if (entry->type == EFREET_MENU_ENTRY_HEADER)
                 INF("%s|---%s", new_indent, entry->name);
         }
-
-        FREE(new_indent);
     }
 }
 
@@ -1014,6 +1011,7 @@ efreet_menu_internal_new(void)
     Efreet_Menu_Internal *internal;
 
     internal = NEW(Efreet_Menu_Internal, 1);
+    if (!internal) return NULL;
     internal->show_empty = -1;
     internal->in_line = -1;
     internal->inline_limit = -1;
@@ -1125,6 +1123,7 @@ efreet_menu_handle_sub_menu(Efreet_Menu_Internal *parent, Efreet_Xml *xml)
     efreet_menu_create_sub_menu_list(parent);
 
     internal = efreet_menu_internal_new();
+    if (!internal) return 0;
     internal->file.path = eina_stringshare_add(parent->file.path);
     if (!efreet_menu_handle_menu(internal, xml))
     {
@@ -1685,6 +1684,7 @@ efreet_menu_merge(Efreet_Menu_Internal *parent, Efreet_Xml *xml, const char *pat
     FREE(rp);
 
     internal = efreet_menu_internal_new();
+    if (!internal) return 0;
     efreet_menu_path_set(internal, path);
     efreet_menu_handle_menu(internal, merge_xml);
     efreet_menu_concatenate(parent, internal);
@@ -1848,8 +1848,11 @@ efreet_menu_handle_legacy_dir(Efreet_Menu_Internal *parent, Efreet_Xml *xml)
 
     legacy = efreet_menu_handle_legacy_dir_helper(NULL, parent, xml->text,
                                 efreet_xml_attribute_get(xml, "prefix"));
-    efreet_menu_concatenate(parent, legacy);
-    efreet_menu_internal_free(legacy);
+    if (legacy)
+    {
+        efreet_menu_concatenate(parent, legacy);
+        efreet_menu_internal_free(legacy);
+    }
 
     return 1;
 
@@ -1883,13 +1886,15 @@ efreet_menu_handle_legacy_dir_helper(Efreet_Menu_Internal *root,
     path = efreet_menu_path_get(parent, legacy_dir);
 
     /* nothing to do if the legacy path doesn't exist */
-    if (!ecore_file_exists(path))
+    if (!path || !ecore_file_exists(path))
     {
         eina_stringshare_del(path);
         return NULL;
     }
 
     legacy_internal = efreet_menu_internal_new();
+    if (!legacy_internal)
+        return NULL;
     legacy_internal->name.internal = eina_stringshare_add(ecore_file_file_get(path));
 
     /* add the legacy dir as an app dir */
@@ -1919,6 +1924,11 @@ efreet_menu_handle_legacy_dir_helper(Efreet_Menu_Internal *root,
     /* setup a filter for all the conforming .desktop files in the legacy
      * dir */
     filter = efreet_menu_filter_new();
+    if (!filter)
+    {
+        efreet_menu_internal_free(legacy_internal);
+        return NULL;
+    }
     filter->type = EFREET_MENU_FILTER_INCLUDE;
 
     filter->op->type = EFREET_MENU_FILTER_OP_OR;
@@ -2381,6 +2391,7 @@ efreet_menu_handle_filter(Efreet_Menu_Internal *parent, Efreet_Xml *xml,
 
     /* filters have a default or relationship */
     filter = efreet_menu_filter_new();
+    if (!filter) return 0;
     filter->type = type;
     filter->op->type = EFREET_MENU_FILTER_OP_OR;
 
@@ -2438,6 +2449,7 @@ efreet_menu_filter_new(void)
     Efreet_Menu_Filter *filter;
 
     filter = NEW(Efreet_Menu_Filter, 1);
+    if (!filter) return NULL;
     filter->op = efreet_menu_filter_op_new();
     if (!filter->op)
     {
@@ -2797,8 +2809,6 @@ efreet_menu_process_app_pool(Eina_List *pool, Eina_List *applications,
     Efreet_Menu_Desktop *md;
     Eina_List *l;
 
-    if (!pool) return NULL;
-
     EINA_LIST_FOREACH(pool, l, md)
     {
         if (eina_hash_find(matches, md->id)) continue;
@@ -3123,6 +3133,7 @@ efreet_menu_resolve_moves(Efreet_Menu_Internal *internal)
                 *path = '\0';
 
                 ancestor = efreet_menu_internal_new();
+                if (!ancestor) goto error;
                 ancestor->name.internal = eina_stringshare_add(tmp);
 
                 efreet_menu_create_sub_menu_list(parent);
@@ -3145,6 +3156,7 @@ efreet_menu_resolve_moves(Efreet_Menu_Internal *internal)
             efreet_menu_internal_free(origin);
         }
     }
+error:
     IF_FREE_LIST(internal->moves, efreet_menu_move_free);
 }
 
