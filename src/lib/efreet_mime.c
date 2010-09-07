@@ -1,5 +1,3 @@
-/* vim: set sw=4 ts=4 sts=4 et: */
-
 #ifdef HAVE_CONFIG_H
 # include <config.h>
 #endif
@@ -303,6 +301,9 @@ efreet_mime_type_get(const char *file)
 {
     const char *type = NULL;
 
+    if (!file)
+      return NULL;
+
     if ((type = efreet_mime_special_check(file)))
         return type;
 
@@ -451,6 +452,8 @@ efreet_mime_globs_type_get(const char *file)
     char *ext, *mime;
 
     /* Check in the extension hash for the type */
+    if (!file) return NULL;
+
     ext = strchr(file, '.');
     if (ext)
     {
@@ -738,7 +741,7 @@ efreet_mime_special_check(const char *file)
 
 #ifndef _WIN32
         if (S_ISLNK(s.st_mode))
-	    return _mime_inode_symlink;
+        return _mime_inode_symlink;
 #endif
 
         if (S_ISFIFO(s.st_mode))
@@ -1149,6 +1152,7 @@ efreet_mime_shared_mimeinfo_magic_parse(char *data, int size)
                 case '=':
                     ptr++;
 
+                    tshort = 0;
                     memcpy(&tshort, ptr, sizeof(short));
                     entry->value_len = ntohs(tshort);
                     ptr += 2;
@@ -1299,7 +1303,7 @@ efreet_mime_magic_check_priority(const char *file,
             else if ((level > e->indent) && match)
             {
                 fclose(f);
-                if (last_mime) return last_mime;
+                return last_mime;
             }
 
             for (offset = e->offset; offset < e->offset + e->range_len; offset++)
@@ -1372,15 +1376,9 @@ static void
 efreet_mime_magic_free(void *data)
 {
     Efreet_Mime_Magic *m = data;
-    Efreet_Mime_Magic_Entry *entry = NULL;
 
     IF_RELEASE(m->mime);
-    while (m->entries)
-    {
-        entry = eina_list_data_get(m->entries);
-        efreet_mime_magic_entry_free(entry);
-        m->entries = eina_list_remove_list(m->entries, m->entries);
-    }
+    IF_FREE_LIST(m->entries, efreet_mime_magic_entry_free);
     IF_FREE(m);
 }
 

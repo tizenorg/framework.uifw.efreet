@@ -1,5 +1,3 @@
-/* vim: set sw=4 ts=4 sts=4 et: */
-
 #ifdef HAVE_CONFIG_H
 # include <config.h>
 #endif
@@ -207,7 +205,8 @@ efreet_dir_get(const char *key, const char *fallback)
 
         user = efreet_home_dir_get();
         len = strlen(user) + strlen(fallback) + 1;
-        dir = malloc(sizeof(char) * len);
+        dir = malloc(len);
+        if (!dir) return NULL;
         snprintf(dir, len, "%s%s", user, fallback);
 
         t = eina_stringshare_add(dir);

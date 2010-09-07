@@ -1,5 +1,3 @@
-/* vim: set sw=4 ts=4 sts=4 et: */
-
 #ifdef HAVE_CONFIG_H
 # include <config.h>
 #endif
@@ -248,8 +246,11 @@ efreet_desktop_command_progress_get(Efreet_Desktop *desktop, Eina_List *files,
         Eina_List *execs;
 
         execs = efreet_desktop_command_build(command);
-        ret = efreet_desktop_command_execs_process(command, execs);
-        eina_list_free(execs);
+        if (execs)
+        {
+            ret = efreet_desktop_command_execs_process(command, execs);
+            eina_list_free(execs);
+        }
         efreet_desktop_command_free(command);
     }
 
@@ -369,6 +370,7 @@ efreet_desktop_command_build(Efreet_Desktop_Command *command)
         Efreet_Desktop_Command_File *file = eina_list_data_get(l);
 
         exec = malloc(size);
+        if (!exec) goto error;
         p = command->desktop->exec;
         len = 0;
 
@@ -376,8 +378,12 @@ efreet_desktop_command_build(Efreet_Desktop_Command *command)
         {
             if (len >= size - 1)
             {
+                char *tmp;
+
                 size = len + 1024;
-                exec = realloc(exec, size);
+                tmp = realloc(exec, size);
+                if (!tmp) goto error;
+                exec = tmp;
             }
 
             /* XXX handle fields inside quotes? */
@@ -394,6 +400,7 @@ efreet_desktop_command_build(Efreet_Desktop_Command *command)
                         {
                             exec = efreet_desktop_command_append_single(exec, &size,
                                     &len, file, *p);
+                            if (!exec) goto error;
                             file_added = 1;
                         }
                         break;
@@ -405,20 +412,24 @@ efreet_desktop_command_build(Efreet_Desktop_Command *command)
                         {
                             exec = efreet_desktop_command_append_multiple(exec, &size,
                                     &len, command, *p);
+                            if (!exec) goto error;
                             file_added = 1;
                         }
                         break;
                     case 'i':
                         exec = efreet_desktop_command_append_icon(exec, &size, &len,
                                 command->desktop);
+                        if (!exec) goto error;
                         break;
                     case 'c':
                         exec = efreet_desktop_command_append_quoted(exec, &size, &len,
                                 command->desktop->name);
+                        if (!exec) goto error;
                         break;
                     case 'k':
                         exec = efreet_desktop_command_append_quoted(exec, &size, &len,
                                 command->desktop->orig_path);
+                        if (!exec) goto error;
                         break;
                     case 'v':
                     case 'm':
@@ -456,18 +467,23 @@ efreet_desktop_command_build(Efreet_Desktop_Command *command)
                 command->desktop->orig_path, command->desktop->exec);
             if (len >= size - 1)
             {
+                char *tmp;
                 size = len + 1024;
-                exec = realloc(exec, size);
+                tmp = realloc(exec, size);
+                if (!tmp) goto error;
+                exec = tmp;
             }
             exec[len++] = ' ';
             exec = efreet_desktop_command_append_multiple(exec, &size,
                     &len, command, 'F');
+            if (!exec) goto error;
             file_added = 1;
         }
 #endif
         exec[len++] = '\0';
 
         execs = eina_list_append(execs, exec);
+        exec = NULL;
 
         /* If no file was added, then the Exec field doesn't contain any file
          * fields (fFuUdDnN). We only want to run the app once in this case. */
@@ -476,6 +492,11 @@ efreet_desktop_command_build(Efreet_Desktop_Command *command)
     while ((l = eina_list_next(l)) != NULL);
 
     return execs;
+error:
+    IF_FREE(exec);
+    EINA_LIST_FREE(execs, exec)
+        free(exec);
+    return NULL;
 }
 
 static void
@@ -500,6 +521,7 @@ efreet_desktop_command_append_quoted(char *dest, int *size, int *len, char *src)
 {
     if (!src) return dest;
     dest = efreet_string_append(dest, size, len, "'");
+    if (!dest) return NULL;
 
     /* single quotes in src need to be escaped */
     if (strchr(src, '\''))
@@ -509,16 +531,24 @@ efreet_desktop_command_append_quoted(char *dest, int *size, int *len, char *src)
         while (*p)
         {
             if (*p == '\'')
+            {
                 dest = efreet_string_append(dest, size, len, "\'\\\'");
+                if (!dest) return NULL;
+            }
 
             dest = efreet_string_append_char(dest, size, len, *p);
+            if (!dest) return NULL;
             p++;
         }
     }
     else
+    {
         dest = efreet_string_append(dest, size, len, src);
+        if (!dest) return NULL;
+    }
 
     dest = efreet_string_append(dest, size, len, "'");
+    if (!dest) return NULL;
 
     return dest;
 }
@@ -539,10 +569,14 @@ efreet_desktop_command_append_multiple(char *dest, int *size, int *len,
         if (first)
             first = 0;
         else
+        {
             dest = efreet_string_append_char(dest, size, len, ' ');
+            if (!dest) return NULL;
+        }
 
         dest = efreet_desktop_command_append_single(dest, size, len,
                                                     file, tolower(type));
+        if (!dest) return NULL;
     }
 
     return dest;
@@ -577,6 +611,7 @@ efreet_desktop_command_append_single(char *dest, int *size, int *len,
     if (!str) return dest;
 
     dest = efreet_desktop_command_append_quoted(dest, size, len, str);
+    if (!dest) return NULL;
 
     return dest;
 }
@@ -588,7 +623,9 @@ efreet_desktop_command_append_icon(char *dest, int *size, int *len,
     if (!desktop->icon || !desktop->icon[0]) return dest;
 
     dest = efreet_string_append(dest, size, len, "--icon ");
+    if (!dest) return NULL;
     dest = efreet_desktop_command_append_quoted(dest, size, len, desktop->icon);
+    if (!dest) return NULL;
 
     return dest;
 }
@@ -653,6 +690,7 @@ efreet_desktop_command_file_process(Efreet_Desktop_Command *command, const char 
     else
     {
         char *absol = efreet_desktop_command_path_absolute(file);
+        if (!absol) goto error;
         /* process local uri/path */
         if (command->flags & EFREET_DESKTOP_EXEC_FLAG_FULLPATH)
             f->fullpath = strdup(absol);
@@ -673,6 +711,9 @@ efreet_desktop_command_file_process(Efreet_Desktop_Command *command, const char 
     INF("  file: %s", f->file);
 #endif
     return f;
+error:
+    IF_FREE(f);
+    return NULL;
 }
 
 /**
@@ -760,9 +801,12 @@ efreet_desktop_cb_download_complete(void *data, const char *file __UNUSED__,
         Eina_List *execs;
 
         execs = efreet_desktop_command_build(f->command);
-        /* TODO: Need to handle the return value from efreet_desktop_command_execs_process */
-        efreet_desktop_command_execs_process(f->command, execs);
-        eina_list_free(execs);
+        if (execs)
+        {
+            /* TODO: Need to handle the return value from efreet_desktop_command_execs_process */
+            efreet_desktop_command_execs_process(f->command, execs);
+            eina_list_free(execs);
+        }
         efreet_desktop_command_free(f->command);
     }
 }
@@ -809,7 +853,9 @@ efreet_desktop_command_path_absolute(const char *path)
         len = strlen(buf);
 
         if (buf[len-1] != '/') buf = efreet_string_append(buf, &size, &len, "/");
+        if (!buf) return NULL;
         buf = efreet_string_append(buf, &size, &len, path);
+        if (!buf) return NULL;
 
         return buf;
     }
@@ -831,11 +877,18 @@ efreet_string_append(char *dest, int *size, int *len, const char *src)
 
     while (l > *size - *len)
     {
+        char *tmp;
         /* we successfully appended this much */
         off += *size - *len - 1;
         *len = *size - 1;
         *size += 1024;
-        dest = realloc(dest, *size);
+        tmp = realloc(dest, *size);
+        if (!tmp)
+        {
+            free(dest);
+            return NULL;
+        }
+        dest = tmp;
         *(dest + *len) = '\0';
 
         l = eina_strlcpy(dest + *len, src + off, *size - *len);
@@ -850,8 +903,15 @@ efreet_string_append_char(char *dest, int *size, int *len, char c)
 {
     if (*len >= *size - 1)
     {
+        char *tmp;
         *size += 1024;
-        dest = realloc(dest, *size);
+        tmp = realloc(dest, *size);
+        if (!tmp)
+        {
+            free(dest);
+            return NULL;
+        }
+        dest = tmp;
     }
 
     dest[(*len)++] = c;

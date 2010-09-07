@@ -1,5 +1,3 @@
-/* vim: set sw=4 ts=4 sts=4 et: */
-
 #ifdef HAVE_CONFIG_H
 # include <config.h>
 #endif
@@ -24,7 +22,7 @@
 static int _efreet_ini_log_dom = -1;
 
 static Eina_Hash *efreet_ini_parse(const char *file);
-static const char *efreet_ini_unescape(const char *str);
+static const char *efreet_ini_unescape(const char *str) EINA_ARG_NONNULL(1);
 static Eina_Bool
 efreet_ini_section_save(const Eina_Hash *hash, const void *key, void *data, void *fdata);
 static Eina_Bool
@@ -197,7 +195,7 @@ efreet_ini_parse(const char *file)
 
         if (sep < line_length)
         {
-            const char *key, *value;
+            char *key, *value;
             int key_end, value_start, value_end;
 
             /* trim whitespace from end of key */
@@ -234,16 +232,16 @@ efreet_ini_parse(const char *file)
                 goto next_line;
             }
 
-            key = alloca((key_end + 1) * sizeof(unsigned char));
-            value = alloca((value_end - value_start + 1) * sizeof(unsigned char));
+            key = alloca(key_end + 1);
+            value = alloca(value_end - value_start + 1);
             if (!key || !value) goto next_line;
 
-            memcpy((char*)key, line_start, key_end);
-            ((char*)key)[key_end] = '\0';
+            memcpy(key, line_start, key_end);
+            key[key_end] = '\0';
 
-            memcpy((char*)value, line_start + value_start,
+            memcpy(value, line_start + value_start,
                     value_end - value_start);
-            ((char*)value)[value_end - value_start] = '\0';
+            value[value_end - value_start] = '\0';
 
             eina_hash_del_by_key(section, key);
             eina_hash_add(section, key, efreet_ini_unescape(value));
@@ -522,7 +520,7 @@ efreet_ini_localestring_get(Efreet_Ini *ini, const char *key)
     if (country) maxlen += strlen(country);
     if (modifier) maxlen += strlen(modifier);
 
-    buf = malloc(maxlen * sizeof(char));
+    buf = alloca(maxlen);
 
     if (lang && modifier && country)
     {
@@ -555,8 +553,6 @@ efreet_ini_localestring_get(Efreet_Ini *ini, const char *key)
     if (!found)
         val = efreet_ini_string_get(ini, key);
 
-    FREE(buf);
-
     return val;
 }
 
@@ -585,7 +581,7 @@ efreet_ini_localestring_set(Efreet_Ini *ini, const char *key, const char *value)
     if (country) maxlen += strlen(country);
     if (modifier) maxlen += strlen(modifier);
 
-    buf = malloc(maxlen * sizeof(char));
+    buf = alloca(maxlen);
 
     if (lang && modifier && country)
         snprintf(buf, maxlen, "%s[%s_%s@%s]", key, lang, country, modifier);
@@ -599,7 +595,6 @@ efreet_ini_localestring_set(Efreet_Ini *ini, const char *key, const char *value)
         return;
 
     efreet_ini_string_set(ini, buf, value);
-    FREE(buf);
 }
 
 /**
@@ -627,7 +622,6 @@ efreet_ini_unescape(const char *str)
     char *buf, *dest;
     const char *p;
 
-    if (!str) return NULL;
     if (!strchr(str, '\\')) return eina_stringshare_add(str);
     buf = alloca(strlen(str) + 1);
 

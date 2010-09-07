@@ -1,5 +1,3 @@
-/* vim: set sw=4 ts=4 sts=4 et: */
-
 #ifdef HAVE_CONFIG_H
 # include <config.h>
 #endif
@@ -10,7 +8,6 @@
 #include <limits.h>
 #include <libgen.h>
 #include <sys/types.h>
-#include <sys/file.h>
 #include <sys/stat.h>
 #include <sys/mman.h>
 #include <fcntl.h>
@@ -139,7 +136,7 @@ static void efreet_desktop_cache_update_free(void *data, void *ev);
 
 static void efreet_desktop_update_cache(void);
 static void efreet_desktop_update_cache_job(void *data);
-static int efreet_desktop_exe_cb(void *data, int type, void *event);
+static Eina_Bool efreet_desktop_exe_cb(void *data, int type, void *event);
 
 static void efreet_desktop_changes_listen(void);
 static void efreet_desktop_changes_listen_recursive(const char *path);
@@ -234,13 +231,8 @@ efreet_desktop_shutdown(void)
     if (efreet_desktop_exe_handler) ecore_event_handler_del(efreet_desktop_exe_handler);
     IF_RELEASE(desktop_environment);
     IF_FREE_HASH(efreet_desktop_cache);
-    while (efreet_desktop_types)
-    {
-        info = eina_list_data_get(efreet_desktop_types);
+    EINA_LIST_FREE(efreet_desktop_types, info)
         efreet_desktop_type_info_free(info);
-        efreet_desktop_types = eina_list_remove_list(efreet_desktop_types,
-                                                     efreet_desktop_types);
-    }
     EINA_LIST_FREE(efreet_desktop_dirs, dir)
         eina_stringshare_del(dir);
     if (cache_monitor) ecore_file_monitor_del(cache_monitor);
@@ -251,8 +243,11 @@ efreet_desktop_shutdown(void)
     eina_log_domain_unregister(_efreet_desktop_log_dom);
     IF_RELEASE(cache_file);
     IF_RELEASE(cache_dirs);
-    if (efreet_desktop_job) ecore_job_del(efreet_desktop_job);
-    efreet_desktop_job = NULL;
+    if (efreet_desktop_job)
+      {
+         ecore_job_del(efreet_desktop_job);
+         efreet_desktop_job = NULL;
+      }
 }
 
 /**
@@ -430,6 +425,7 @@ efreet_desktop_save(Efreet_Desktop *desktop)
     int ok = 1;
 
     ini = efreet_ini_new(NULL);
+    if (!ini) return 0;
     efreet_ini_section_add(ini, "Desktop Entry");
     efreet_ini_section_set(ini, "Desktop Entry");
 
@@ -449,14 +445,20 @@ efreet_desktop_save(Efreet_Desktop *desktop)
         if (desktop->only_show_in)
         {
             val = efreet_desktop_string_list_join(desktop->only_show_in);
-            efreet_ini_string_set(ini, "OnlyShowIn", val);
-            FREE(val);
+            if (val)
+            {
+                efreet_ini_string_set(ini, "OnlyShowIn", val);
+                FREE(val);
+            }
         }
         if (desktop->not_show_in)
         {
             val = efreet_desktop_string_list_join(desktop->not_show_in);
-            efreet_ini_string_set(ini, "NotShowIn", val);
-            FREE(val);
+            if (val)
+            {
+                efreet_ini_string_set(ini, "NotShowIn", val);
+                FREE(val);
+            }
         }
         efreet_desktop_generic_fields_save(desktop, ini);
         /* When we save the file, it should be updated to the
@@ -807,7 +809,7 @@ EAPI char *
 efreet_desktop_string_list_join(Eina_List *list)
 {
     Eina_List *l;
-    const char *tmp;
+    const char *elem;
     char *string;
     size_t size, pos, len;
 
@@ -815,18 +817,26 @@ efreet_desktop_string_list_join(Eina_List *list)
 
     size = 1024;
     string = malloc(size);
+    if (!string) return NULL;
     pos = 0;
 
-    EINA_LIST_FOREACH(list, l, tmp)
+    EINA_LIST_FOREACH(list, l, elem)
     {
-        len = strlen(tmp);
+        len = strlen(elem);
         /* +1 for ';' */
         if ((len + pos + 1) >= size)
         {
+            char *tmp;
             size = len + pos + 1024;
-            string = realloc(string, size);
+            tmp = realloc(string, size);
+            if (!tmp)
+            {
+                free(string);
+                return NULL;
+            }
+            string = tmp;
         }
-        strcpy(string + pos, tmp);
+        strcpy(string + pos, elem);
         pos += len;
         strcpy(string + pos, ";");
         pos += 1;
@@ -911,6 +921,7 @@ efreet_desktop_read(Efreet_Desktop *desktop)
     int ok;
 
     ini = efreet_ini_new(desktop->orig_path);
+    if (!ini) return 0;
     if (!ini->data)
     {
         efreet_ini_free(ini);
@@ -1056,15 +1067,21 @@ efreet_desktop_application_fields_save(Efreet_Desktop *desktop, Efreet_Ini *ini)
     if (desktop->categories)
     {
         val = efreet_desktop_string_list_join(desktop->categories);
-        efreet_ini_string_set(ini, "Categories", val);
-        FREE(val);
+        if (val)
+        {
+            efreet_ini_string_set(ini, "Categories", val);
+            FREE(val);
+        }
     }
 
     if (desktop->mime_types)
     {
         val = efreet_desktop_string_list_join(desktop->mime_types);
-        efreet_ini_string_set(ini, "MimeType", val);
-        FREE(val);
+        if (val)
+        {
+           efreet_ini_string_set(ini, "MimeType", val);
+           FREE(val);
+        }
     }
 
     efreet_ini_boolean_set(ini, "Terminal", desktop->terminal);
@@ -1274,7 +1291,7 @@ efreet_desktop_edd_init(void)
     Eet_Data_Descriptor *edd;
 
     Eet_Data_Descriptor_Class eddc;
-    if (!eet_eina_file_data_descriptor_class_set(&eddc, "cache", sizeof(Efreet_Desktop))) return NULL;
+    if (!eet_eina_file_data_descriptor_class_set(&eddc, sizeof (eddc), "cache", sizeof(Efreet_Desktop))) return NULL;
     edd = eet_data_descriptor_file_new(&eddc);
     if (!edd) return NULL;
     EET_DATA_DESCRIPTOR_ADD_BASIC(edd, Efreet_Desktop, "type", type, EET_T_INT);
@@ -1320,14 +1337,18 @@ efreet_desktop_write_cache_dirs_file(void)
     char *map = MAP_FAILED;
     char *dir;
     struct stat st;
+    struct flock fl;
 
     if (!efreet_desktop_dirs) return 1;
 
     snprintf(file, sizeof(file), "%s/.efreet/desktop_data.lock", efreet_home_dir_get());
-    fd = open(file, O_CREAT | O_RDONLY, S_IRUSR | S_IWUSR);
+    fd = open(file, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
     if (fd < 0) return 0;
     /* TODO: Retry update cache later */
-    if (flock(fd, LOCK_EX | LOCK_NB) < 0) goto error;
+    memset(&fl, 0, sizeof(struct flock));
+    fl.l_type = F_WRLCK;
+    fl.l_whence = SEEK_SET;
+    if (fcntl(fd, F_SETLK, &fl) < 0) goto error;
 
     cachefd = open(efreet_desktop_cache_dirs(), O_CREAT | O_APPEND | O_RDWR, S_IRUSR | S_IWUSR);
     if (cachefd < 0) goto error;
@@ -1359,8 +1380,13 @@ efreet_desktop_write_cache_dirs_file(void)
     EINA_LIST_FREE(efreet_desktop_dirs, dir)
     {
         unsigned int size = strlen(dir) + 1;
-        write(cachefd, &size, sizeof(int));
-        write(cachefd, dir, size);
+        size_t count;
+
+        count = write(cachefd, &size, sizeof(int));
+        count += write(cachefd, dir, size);
+
+        if (count != sizeof(int) + size)
+            DBG("Didn't write all data on cachefd");
 
         efreet_desktop_changes_monitor_add(dir);
         eina_stringshare_del(dir);
@@ -1372,7 +1398,6 @@ error:
     if (map != MAP_FAILED) munmap(map, st.st_size);
     if (fd > 0) close(fd);
     if (cachefd > 0) close(cachefd);
-    efreet_desktop_job = NULL;
     return 0;
 }
 
@@ -1381,8 +1406,8 @@ efreet_desktop_cache_update_cb(void *data __UNUSED__, Ecore_File_Monitor *em __U
                                Ecore_File_Event event, const char *path)
 {
     Eet_File *tmp;
-    Efreet_Event_Cache_Update *ev;
-    Efreet_Old_Cache *d;
+    Efreet_Event_Cache_Update *ev = NULL;
+    Efreet_Old_Cache *d = NULL;
 
     if (strcmp(path, efreet_desktop_cache_file())) return;
     if (event != ECORE_FILE_EVENT_CREATED_FILE &&
@@ -1406,7 +1431,9 @@ efreet_desktop_cache_update_cb(void *data __UNUSED__, Ecore_File_Monitor *em __U
     ecore_event_add(EFREET_EVENT_DESKTOP_CACHE_UPDATE, ev, efreet_desktop_cache_update_free, d);
     return;
 error:
-    if (tmp) eet_close(tmp);
+    IF_FREE(ev);
+    IF_FREE(d);
+    eet_close(tmp);
 }
 
 static void
@@ -1472,7 +1499,10 @@ static void
 efreet_desktop_update_cache_job(void *data __UNUSED__)
 {
     char file[PATH_MAX];
+    struct flock fl;
 
+    efreet_desktop_job = NULL;
+   
     /* TODO: Retry update cache later */
     if (efreet_desktop_exe_lock > 0) return;
 
@@ -1480,9 +1510,12 @@ efreet_desktop_update_cache_job(void *data __UNUSED__)
 
     snprintf(file, sizeof(file), "%s/.efreet/desktop_exec.lock", efreet_home_dir_get());
 
-    efreet_desktop_exe_lock = open(file, O_CREAT | O_RDONLY, S_IRUSR | S_IWUSR);
+    efreet_desktop_exe_lock = open(file, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
     if (efreet_desktop_exe_lock < 0) return;
-    if (flock(efreet_desktop_exe_lock, LOCK_EX | LOCK_NB) < 0) goto error;
+    memset(&fl, 0, sizeof(struct flock));
+    fl.l_type = F_WRLCK;
+    fl.l_whence = SEEK_SET;
+    if (fcntl(efreet_desktop_exe_lock, F_SETLK, &fl) < 0) goto error;
     efreet_desktop_exe = ecore_exe_run(PACKAGE_LIB_DIR "/efreet/efreet_desktop_cache_create", NULL);
     if (!efreet_desktop_exe) goto error;
 
@@ -1496,19 +1529,19 @@ error:
     }
 }
 
-static int
+static Eina_Bool
 efreet_desktop_exe_cb(void *data __UNUSED__, int type __UNUSED__, void *event)
 {
     Ecore_Exe_Event_Del *ev;
 
     ev = event;
-    if (ev->exe != efreet_desktop_exe) return 1;
+    if (ev->exe != efreet_desktop_exe) return ECORE_CALLBACK_RENEW;
     if (efreet_desktop_exe_lock > 0)
     {
         close(efreet_desktop_exe_lock);
         efreet_desktop_exe_lock = -1;
     }
-    return 1;
+    return ECORE_CALLBACK_RENEW;
 }
 
 static void
@@ -1595,8 +1628,6 @@ static void
 efreet_desktop_changes_cb(void *data __UNUSED__, Ecore_File_Monitor *em __UNUSED__,
                                  Ecore_File_Event event, const char *path)
 {
-    Ecore_File_Monitor *fm;
-
     switch (event)
     {
         case ECORE_FILE_EVENT_NONE:
