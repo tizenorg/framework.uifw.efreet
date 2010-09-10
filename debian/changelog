@@ -1,3 +1,11 @@
+efreet (1.0.0.001+svn.51480slp2+build01) unstable; urgency=low
+
+  * efl 1.0 alpha upgrade
+  * Git: 165.213.180.234:/git/slp/pkgs/efreet
+  * Tag: efreet_1.0.0.001+svn.51480slp2+build01
+
+ -- Jaehwan Kim <jae.hwan.kim@samsung.com>  Tue, 31 Aug 2010 22:51:38 +0900
+
 efreet (0.5.0.060+svn.49545slp2+3build04) unstable; urgency=low
 
   * Packaging.
