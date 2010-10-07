@@ -665,6 +665,9 @@ efreet_menu_get(void)
             return efreet_menu_parse(menu);
     }
 
+    snprintf(menu, sizeof(menu), "/etc/xdg/menus/enlightenment-applications.menu");
+    if (ecore_file_exists(menu)) return efreet_menu_parse(menu);
+
     return NULL;
 }
 
