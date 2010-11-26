@@ -1,3 +1,12 @@
+efreet (1.0.0.001+svn.51480slp2+build04) unstable; urgency=low
+
+  * [SVN 54834 Merge]
+  * Update to SVN Revision 54834.
+  * Git: 165.213.180.234:/git/slp/pkgs/efreet
+  * Tag: efreet_1.0.0.001+svn.51480slp2+build04
+
+ -- Juyung Seo <juyung.seo@samsung.com>  Fri, 26 Nov 2010 15:51:46 +0900
+
 efreet (1.0.0.001+svn.51480slp2+build03) unstable; urgency=low
 
   * Packaging
