@@ -1,27 +1,6 @@
 #ifndef EFREET_PRIVATE_H
 #define EFREET_PRIVATE_H
 
-#include <Eet.h>
-
-#undef alloca
-#ifdef HAVE_ALLOCA_H
-# include <alloca.h>
-#elif defined __GNUC__
-# define alloca __builtin_alloca
-#elif defined _AIX
-# define alloca __alloca
-#elif defined _MSC_VER
-# include <malloc.h>
-# define alloca _alloca
-#else
-# include <stddef.h>
-# ifdef  __cplusplus
-extern "C"
-# endif
-void *alloca (size_t);
-#endif
-
-
 /**
  * @file efreet_private.h
  * @brief Contains methods and defines that are private to the Efreet
@@ -65,11 +44,10 @@ void *alloca (size_t);
  * If x is a valid pointer destroy x and set to NULL
  */
 #define IF_FREE_LIST(list, free_cb) do { \
-    while (list) \
-    { \
-        free_cb(eina_list_data_get(list)); \
-        list = eina_list_remove_list(list, list); \
-    } \
+    void *_data; \
+    EINA_LIST_FREE(list, _data) \
+    free_cb(_data); \
+    list = NULL; \
 } while (0)
 
 /**
@@ -94,7 +72,7 @@ extern int _efreet_log_dom_global;
 #endif
 #define EFREET_DEFAULT_LOG_COLOR "\033[36m"
 
-#define EFREET_MODULE_LOG_DOM _efreet_log_dom_global; /*default log domain for each module. It can redefined inside each module */
+#define EFREET_MODULE_LOG_DOM _efreet_log_dom_global /*default log domain for each module. It can redefined inside each module */
 #ifdef ERROR
 #undef ERROR
 #endif
@@ -117,7 +95,7 @@ extern int _efreet_log_dom_global;
  * four macros are defined ERR, WRN, DGB, INF. 
  * EFREET_MODULE_LOG_DOM should be defined individually for each module
  */
-#define EFREET_MODULE_LOG_DOM _efreet_log_dom_global; /*default log domain for each module. It can redefined inside each module */
+#define EFREET_MODULE_LOG_DOM _efreet_log_dom_global /*default log domain for each module. It can redefined inside each module */
 #ifdef ERR
 #undef ERR
 #endif
@@ -135,8 +113,74 @@ extern int _efreet_log_dom_global;
 #endif
 #define WRN(...) EINA_LOG_DOM_WARN(EFREET_MODULE_LOG_DOM, __VA_ARGS__)
 
+extern Eina_Hash *efreet_desktop_cache;
+
+#ifdef ICON_CACHE
+#define EFREET_CACHE_MAJOR 0
+#define EFREET_CACHE_MINOR 3
+
+typedef struct _Efreet_Cache_Icon_Element Efreet_Cache_Icon_Element;
+typedef struct _Efreet_Cache_Fallback_Icon Efreet_Cache_Fallback_Icon;
+typedef struct _Efreet_Cache_Icon Efreet_Cache_Icon;
+typedef struct _Efreet_Cache_Theme Efreet_Cache_Theme;
+typedef struct _Efreet_Cache_Directory Efreet_Cache_Directory;
+
+struct _Efreet_Cache_Theme
+{
+    struct {
+        unsigned char major;
+        unsigned char minor;
+    } version;
+
+    Eina_Hash *icons;
+   Eina_Hash *dirs;
+};
+
+struct _Efreet_Cache_Directory
+{
+   long long modified_time;
+};
+
+struct _Efreet_Cache_Icon
+{
+    const char *theme;
+
+    Efreet_Cache_Icon_Element **icons;
+    unsigned int icons_count;
+};
+
+struct _Efreet_Cache_Icon_Element
+{
+    const char **paths;          /* possible paths for icon */
+    unsigned int paths_count;
+
+    unsigned short type;         /* size type of icon */
+
+    unsigned short normal;       /* The size for this icon */
+    unsigned short min;          /* The minimum size for this icon */
+    unsigned short max;          /* The maximum size for this icon */
+};
+
+struct _Efreet_Cache_Fallback_Icon
+{
+#if 0
+    const char *name;
+#endif
+    const char *theme;
+#if 0
+    int         context; /* the type of icon */
+#endif
+
+    const char **icons;
+    unsigned int icons_count;
+};
+#endif
+
 int efreet_base_init(void);
 void efreet_base_shutdown(void);
+
+int efreet_cache_init(void);
+void efreet_cache_shutdown(void);
 
 int efreet_icon_init(void);
 void efreet_icon_shutdown(void);
@@ -166,13 +210,27 @@ size_t efreet_array_cat(char *buffer, size_t size, const char *strs[]);
 
 const char *efreet_desktop_environment_get(void);
 
-EAPI Eet_Data_Descriptor *efreet_desktop_edd_init(void);
-EAPI void efreet_desktop_edd_shutdown(Eet_Data_Descriptor *edd);
-
 void efreet_util_desktop_cache_reload(void);
 EAPI const char *efreet_desktop_util_cache_file(void);
 EAPI const char *efreet_desktop_cache_file(void);
 EAPI const char *efreet_desktop_cache_dirs(void);
+int efreet_desktop_write_cache_dirs_file(void);
+
+void efreet_cache_desktop_update(void);
+#ifdef ICON_CACHE
+void efreet_cache_icon_update(void);
+#endif
+void efreet_cache_desktop_free(Efreet_Desktop *desktop);
+Efreet_Desktop *efreet_cache_desktop_find(const char *file);
+
+#ifdef ICON_CACHE
+EAPI const char *efreet_icon_cache_file(void);
+
+EAPI void efreet_cache_icon_free(Efreet_Cache_Icon *icon);
+EAPI void efreet_cache_icon_fallback_free(Efreet_Cache_Fallback_Icon *icon);
+Efreet_Cache_Icon *efreet_cache_icon_find(Efreet_Icon_Theme *theme, const char *icon);
+Efreet_Cache_Fallback_Icon *efreet_cache_icon_fallback_find(const char *icon);
+#endif
 
 #define NON_EXISTING (void *)-1
 

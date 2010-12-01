@@ -2,6 +2,24 @@
 # include <config.h>
 #endif
 
+#undef alloca
+#ifdef HAVE_ALLOCA_H
+# include <alloca.h>
+#elif defined __GNUC__
+# define alloca __builtin_alloca
+#elif defined _AIX
+# define alloca __alloca
+#elif defined _MSC_VER
+# include <malloc.h>
+# define alloca _alloca
+#else
+# include <stddef.h>
+# ifdef  __cplusplus
+extern "C"
+# endif
+void *alloca (size_t);
+#endif
+
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
@@ -36,7 +54,8 @@ efreet_ini_value_save(const Eina_Hash *hash, const void *key, void *data, void *
 int
 efreet_ini_init(void)
 {
-    _efreet_ini_log_dom = eina_log_domain_register("Efreet_init", EFREET_DEFAULT_LOG_COLOR);
+    _efreet_ini_log_dom = eina_log_domain_register
+      ("efreet_init", EFREET_DEFAULT_LOG_COLOR);
     if (_efreet_ini_log_dom < 0)
     {
         ERROR("Efreet: Could not create a log domain for efreet_init");

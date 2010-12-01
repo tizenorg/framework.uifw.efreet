@@ -17,8 +17,7 @@
 static Eina_Bool _hash_keys(Eina_Hash *hash, const char *key, void *list);
 static void ef_icon_theme_themes_find(const char *search_dir,
                                         Eina_Hash *themes);
-static void ef_icons_find(Efreet_Icon_Theme *theme, Eina_List *themes,
-                                                    Eina_Hash *icons);
+static void ef_icons_find(Efreet_Icon_Theme *theme, Eina_Hash *icons);
 static void ef_read_dir(const char *dir, Eina_Hash *icons);
 
 int
@@ -101,7 +100,7 @@ ef_cb_efreet_icon_theme_list(void)
     EINA_LIST_FOREACH(themes, l, theme)
     {
         if ((eina_hash_find(dirs, theme->name.internal)))
-	    eina_hash_del(dirs, theme->name.internal, NULL);
+            eina_hash_del(dirs, theme->name.internal, NULL);
         else
         {
             printf("efreet_icon_theme_list_get() returned %s which we didn't "
@@ -110,9 +109,9 @@ ef_cb_efreet_icon_theme_list(void)
         }
     }
     while (themes)
-      {
-	 themes = eina_list_remove_list(themes, themes);
-      }
+    {
+        themes = eina_list_remove_list(themes, themes);
+    }
 
     themes = NULL;
     it = eina_hash_iterator_key_new(dirs);
@@ -122,15 +121,15 @@ ef_cb_efreet_icon_theme_list(void)
     if (eina_list_count(themes) > 0)
     {
         printf("efreet_icon_theme_list_get() missed: ");
-	EINA_LIST_FOREACH(themes, l, dir)
+        EINA_LIST_FOREACH(themes, l, dir)
             printf("%s ", dir);
         printf("\n");
 
         ret = 0;
     }
     while (themes)
-      {
-	 themes = eina_list_remove_list(themes, themes);
+    {
+        themes = eina_list_remove_list(themes, themes);
       }
     eina_hash_free(dirs);
 
@@ -152,7 +151,7 @@ ef_icon_theme_themes_find(const char *search_dir, Eina_Hash *themes)
     {
         char p[PATH_MAX];
 
-	dirs = eina_list_remove_list(dirs, dirs);
+        dirs = eina_list_remove_list(dirs, dirs);
         /* if we've already added the theme we're done */
         if (eina_hash_find(themes, dir))
         {
@@ -453,34 +452,17 @@ ef_cb_efreet_icon_match(void)
     int i, ret = 1;
     Eina_Hash *icon_hash;
     Efreet_Icon_Theme *theme;
-    Eina_List *themes;
-    Eina_List *l;
 
-    themes = efreet_icon_theme_list_get();
-    EINA_LIST_FOREACH(themes, l, theme)
-    {
-        if (!strcmp(theme->name.internal, THEME))
-            break;
-    }
-
-    if (!theme)
-    {
-        printf("Theme not installed, SKIPPED.\n");
-	while (themes)
-	   themes = eina_list_remove_list(themes, themes);
-        return 1;
-    }
-
+    theme = efreet_icon_theme_find(THEME);
     icon_hash = eina_hash_string_superfast_new(free);
 
-    ef_icons_find(theme, themes, icon_hash);
-    while (themes)
-       themes = eina_list_remove_list(themes, themes);
+    ef_icons_find(theme, icon_hash);
 
     double start = ecore_time_get();
     for (i = 0; system_icons[i]; i++)
     {
-        char *path, *s;
+        const char *path;
+        char *p, *s;
 
         path = efreet_icon_path_find(THEME, system_icons[i], SIZE);
 
@@ -500,9 +482,10 @@ ef_cb_efreet_icon_match(void)
             printf("Found icon not in hash: %s\n", system_icons[i]);
         }
 
-        s = strrchr(path, '.');
+        p = strdup(path);
+        s = strrchr(p, '.');
         if (s) *s = '\0';
-        s = strrchr(path, '/');
+        s = strrchr(p, '/');
         if (s) s++;
 
         if (s && strcmp(s, system_icons[i]))
@@ -510,7 +493,7 @@ ef_cb_efreet_icon_match(void)
             printf("Name mismatch name (%s) vs ef (%s)\n", system_icons[i], s);
             ret = 0;
         }
-        free(path);
+        free(p);
     }
     printf("Time: %f\n", (ecore_time_get() - start));
     eina_hash_free(icon_hash);
@@ -518,15 +501,17 @@ ef_cb_efreet_icon_match(void)
     start = ecore_time_get();
     for (i = 0; system_icons[i]; i++)
     {
-        char *path, *s;
+        const char *path;
+        char *p, *s;
 
         path = efreet_icon_path_find(THEME, system_icons[i], SIZE);
 
         if (!path) continue;
+        p = strdup(path);
 
-        s = strrchr(path, '.');
+        s = strrchr(p, '.');
         if (s) *s = '\0';
-        s = strrchr(path, '/');
+        s = strrchr(p, '/');
         if (s) s++;
 
         if (s && strcmp(s, system_icons[i]))
@@ -534,7 +519,7 @@ ef_cb_efreet_icon_match(void)
             printf("Name mismatch name (%s) vs ef (%s)\n", system_icons[i], s);
             ret = 0;
         }
-        free(path);
+        free(p);
     }
     printf("Time: %f\n", (ecore_time_get() - start));
 
@@ -542,7 +527,7 @@ ef_cb_efreet_icon_match(void)
 }
 
 static void
-ef_icons_find(Efreet_Icon_Theme *theme, Eina_List *themes, Eina_Hash *icons)
+ef_icons_find(Efreet_Icon_Theme *theme, Eina_Hash *icons)
 {
     Eina_List *l, *ll;
     char path[PATH_MAX];
@@ -554,36 +539,32 @@ ef_icons_find(Efreet_Icon_Theme *theme, Eina_List *themes, Eina_Hash *icons)
     {
         Efreet_Icon_Theme_Directory *dir;
 
-	 EINA_LIST_FOREACH(theme->directories, ll, dir)
-            {
-                snprintf(path, sizeof(path), "%s/%s/", theme_path, dir->name);
-                ef_read_dir(path, icons);
-            }
+        EINA_LIST_FOREACH(theme->directories, ll, dir)
+        {
+            snprintf(path, sizeof(path), "%s/%s/", theme_path, dir->name);
+            ef_read_dir(path, icons);
         }
+    }
 
     if (theme->inherits)
     {
         Efreet_Icon_Theme *parent_theme;
         char *parent;
 
-	EINA_LIST_FOREACH(theme->inherits, l, parent)
+        EINA_LIST_FOREACH(theme->inherits, l, parent)
         {
-	    EINA_LIST_FOREACH(themes, ll, parent_theme)
-            {
-                if (!strcmp(parent_theme->name.internal, parent))
-                    ef_icons_find(parent_theme, themes, icons);
-            }
+            parent_theme = efreet_icon_theme_find(parent);
+            if (parent_theme)
+                ef_icons_find(parent_theme, icons);
         }
     }
-    else
+    else if (theme->valid && strcmp(theme->name.internal, "hicolor"))
     {
         Efreet_Icon_Theme *parent_theme;
 
-	EINA_LIST_FOREACH(themes, l, parent_theme)
-        {
-            if (!strcmp(parent_theme->name.internal, "hicolor"))
-                ef_icons_find(parent_theme, themes, icons);
-        }
+        parent_theme = efreet_icon_theme_find("hicolor");
+        if (parent_theme)
+            ef_icons_find(parent_theme, icons);
     }
 
     ef_read_dir("/usr/share/pixmaps", icons);
@@ -604,7 +585,7 @@ ef_read_dir(const char *dir, Eina_Hash *icons)
     {
         char *p;
 
-	files = eina_list_remove_list(files, files);
+        files = eina_list_remove_list(files, files);
         p = strrchr(file, '.');
         if (!p)
         {

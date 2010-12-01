@@ -4,6 +4,24 @@
 # include <config.h>
 #endif
 
+#undef alloca
+#ifdef HAVE_ALLOCA_H
+# include <alloca.h>
+#elif defined __GNUC__
+# define alloca __builtin_alloca
+#elif defined _AIX
+# define alloca __alloca
+#elif defined _MSC_VER
+# include <malloc.h>
+# define alloca _alloca
+#else
+# include <stddef.h>
+# ifdef  __cplusplus
+extern "C"
+# endif
+void *alloca (size_t);
+#endif
+
 #include <stdio.h>
 #include <string.h>
 #include <sys/types.h>
@@ -461,10 +479,11 @@ efreet_menu_init(void)
         {NULL, NULL}
     };
 
-    _efreet_menu_log_dom = eina_log_domain_register("Efreet_menu", EFREET_DEFAULT_LOG_COLOR);
+    _efreet_menu_log_dom = eina_log_domain_register
+      ("efreet_menu", EFREET_DEFAULT_LOG_COLOR);
     if (_efreet_menu_log_dom < 0)
     {
-        ERROR("Efreet: Could not create a log domain for Efreet_menu");
+        ERROR("Efreet: Could not create a log domain for efreet_menu");
         return 0;
     }
     if (!efreet_xml_init())
@@ -665,12 +684,6 @@ efreet_menu_get(void)
             return efreet_menu_parse(menu);
     }
 
-    //snprintf(menu, sizeof(menu), "/etc/xdg/menus/enlightenment-applications.menu");
-    //if (ecore_file_exists(menu)) return efreet_menu_parse(menu);
-
-    snprintf(menu, sizeof(menu), "/etc/xdg/menus/enlightenment-applications.menu");
-    if (ecore_file_exists(menu)) return efreet_menu_parse(menu);
-
     return NULL;
 }
 
@@ -704,7 +717,7 @@ efreet_menu_parse(const char *path)
     IF_FREE_HASH(efreet_merged_dirs);
     efreet_merged_dirs = eina_hash_string_superfast_new(NULL);
 
-    /* split appart the filename and the path */
+    /* split apart the filename and the path */
     internal = efreet_menu_internal_new();
     if (!internal) return NULL;
 
@@ -1654,15 +1667,14 @@ efreet_menu_merge(Efreet_Menu_Internal *parent, Efreet_Xml *xml, const char *pat
 {
     Efreet_Xml *merge_xml;
     Efreet_Menu_Internal *internal;
-    char *rp;
+    char rp[PATH_MAX];
 
     if (!parent || !xml || !path) return 0;
 
     /* do nothing if the file doesn't exist */
     if (!ecore_file_exists(path)) return 1;
 
-    rp = ecore_file_realpath(path);
-    if (rp[0] == '\0')
+    if (!realpath(path, rp))
     {
         INF("efreet_menu_merge() unable to get real path for %s", path);
         return 0;
@@ -1671,7 +1683,6 @@ efreet_menu_merge(Efreet_Menu_Internal *parent, Efreet_Xml *xml, const char *pat
     /* don't merge the same path twice */
     if (eina_hash_find(efreet_merged_menus, rp)) 
     {
-        FREE(rp);
         return 1;
     }
 
@@ -1683,11 +1694,8 @@ efreet_menu_merge(Efreet_Menu_Internal *parent, Efreet_Xml *xml, const char *pat
     {
         INF("efreet_menu_merge() failed to read in the "
                 "merge file (%s)", rp);
-        FREE(rp);
         return 0;
     }
-
-    FREE(rp);
 
     internal = efreet_menu_internal_new();
     if (!internal) return 0;
@@ -2711,7 +2719,7 @@ efreet_menu_process_dirs(Efreet_Menu_Internal *internal)
 /**
  * @internal
  * @param menu: the menu to process
- * @param only_unallocated: Only handle menus taht deal with unallocated items
+ * @param only_unallocated: Only handle menus that deal with unallocated items
  * @return Returns no value
  * @brief Handles the processing of the filters attached to the given menu.
  *
@@ -2730,9 +2738,7 @@ efreet_menu_process_filters(Efreet_Menu_Internal *internal, unsigned int only_un
     /* nothing to do if we're checking the other option */
     if (only_unallocated != internal->only_unallocated) return;
 
-    while (internal->applications)
-        internal->applications = eina_list_remove_list(internal->applications,
-                                                       internal->applications);
+    internal->applications = eina_list_free(internal->applications);
 
     if (!internal->filters) return;
 

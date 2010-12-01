@@ -11,6 +11,12 @@
  * @{
  */
 
+
+/**
+ * Event id for cache update.
+ */
+EAPI extern int EFREET_EVENT_ICON_CACHE_UPDATE;
+
 /**
  * The possible contexts for an icon directory
  */
@@ -65,9 +71,6 @@ struct Efreet_Icon_Theme
 
     unsigned char hidden:1;     /**< Should this theme be hidden from users */
     unsigned char valid:1;      /**< Have we seen an index for this theme */
-    unsigned char fake:1;       /**< This isnt' a real theme but the user has
-                                        tried to query from it. We create the
-                                        fake one to give us the theme cache. */
 };
 
 /**
@@ -122,7 +125,7 @@ struct Efreet_Icon
                                         points for emblems/overlays */
 
     unsigned int ref_count;    /**< References to this icon */
-    unsigned char has_embedded_text_rectangle:1; /**< Was the embedded
+    unsigned char has_embedded_text_rectangle:1; /**< Has the embedded
                                                         rectangle set */
 };
 
@@ -142,6 +145,7 @@ struct Efreet_Icon_Point
 };
 
 EAPI const char        *efreet_icon_user_dir_get(void);
+EAPI const char        *efreet_icon_deprecated_user_dir_get(void);
 EAPI void               efreet_icon_extension_add(const char *ext);
 
 EAPI Eina_List        **efreet_icon_extra_list_get(void);
@@ -150,10 +154,10 @@ EAPI Efreet_Icon_Theme *efreet_icon_theme_find(const char *theme_name);
 EAPI Efreet_Icon       *efreet_icon_find(const char *theme_name,
                                             const char *icon,
                                             unsigned int size);
-EAPI char              *efreet_icon_list_find(const char *theme_name,
+EAPI const char        *efreet_icon_list_find(const char *theme_name,
                                                 Eina_List *icons,
                                                 unsigned int size);
-EAPI char              *efreet_icon_path_find(const char *theme_name,
+EAPI const char        *efreet_icon_path_find(const char *theme_name,
                                                 const char *icon,
                                                 unsigned int size);
 EAPI void               efreet_icon_free(Efreet_Icon *icon);

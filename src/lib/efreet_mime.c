@@ -43,8 +43,8 @@ void *alloca (size_t);
 #include <Ecore.h>
 #include <Ecore_File.h>
 
-#include <Efreet.h>
-#include <Efreet_Mime.h>
+#include "Efreet.h"
+#include "Efreet_Mime.h"
 #include "efreet_private.h"
 
 static Eina_List *globs = NULL;     /* contains Efreet_Mime_Glob structs */
@@ -149,7 +149,7 @@ struct Efreet_Mime_Icon_Entry_Head
     EINA_INLIST; /* node of mime_icons_lru */
     Eina_Inlist *list;
     const char *mime;
-    time_t timestamp;
+    double timestamp;
 };
 
 typedef struct Efreet_Mime_Icon_Entry Efreet_Mime_Icon_Entry;
@@ -194,7 +194,7 @@ static void efreet_mime_cb_update_file(void *data,
                                         Ecore_File_Event event,
                                         const char *path);
 
-static void efreet_mime_icons_flush(time_t now);
+static void efreet_mime_icons_flush(double now);
 static void efreet_mime_icon_entry_head_free(Efreet_Mime_Icon_Entry_Head *entry);
 static void efreet_mime_icon_entry_add(const char *mime,
                                        const char *icon,
@@ -224,11 +224,12 @@ efreet_mime_init(void)
     if (!efreet_init())
         goto shutdown_ecore_file;
 
-    _efreet_mime_log_dom = eina_log_domain_register("Efreet_mime", EFREET_DEFAULT_LOG_COLOR);
+    _efreet_mime_log_dom = eina_log_domain_register
+      ("efreet_mime", EFREET_DEFAULT_LOG_COLOR);
 
     if (_efreet_mime_log_dom < 0)
     {
-        ERROR("Efreet: Could not create a log domain for Efreet_mime.");
+        ERROR("Efreet: Could not create a log domain for efreet_mime.");
         goto shutdown_efreet;
     }
 
@@ -329,10 +330,10 @@ efreet_mime_type_get(const char *file)
  * @return Returns mime type icon path as a string
  * @brief Retreive the mime type icon for a file
  */
-EAPI char *
+EAPI const char *
 efreet_mime_type_icon_get(const char *mime, const char *theme, unsigned int size)
 {
-    char *icon = NULL;
+    const char *icon = NULL;
     char *data;
     Eina_List *icons  = NULL;
     const char *env = NULL;
@@ -422,7 +423,7 @@ efreet_mime_type_cache_clear(void)
 EAPI void
 efreet_mime_type_cache_flush(void)
 {
-    efreet_mime_icons_flush((time_t)ecore_loop_time_get());
+    efreet_mime_icons_flush(ecore_loop_time_get());
 }
 
 
@@ -734,7 +735,12 @@ efreet_mime_special_check(const char *file)
     struct stat s;
     int path_len = 0;
 
+    /* no link on Windows < Vista */
+#ifdef _WIN32
+    if (!stat(file, &s))
+#else
     if (!lstat(file, &s))
+#endif
     {
         if (S_ISREG(s.st_mode))
             return NULL;
@@ -775,7 +781,11 @@ efreet_mime_special_check(const char *file)
             /* Truncate to last slash */
             while (parent[--path_len] != '/') parent[path_len] = '\0';
 
+#ifdef _WIN32
+            if (!stat(file, &s2))
+#else
             if (!lstat(parent, &s2))
+#endif
             {
                 if (s.st_dev != s2.st_dev)
                     return _mime_inode_mountpoint;
@@ -806,7 +816,7 @@ efreet_mime_fallback_check(const char *file)
 
     if (ecore_file_can_exec(file))
         return _mime_application_x_executable;
-    
+
     if (!(f = fopen(file, "r"))) return NULL;
 
     i = fread(buf, 1, sizeof(buf), f);
@@ -1073,7 +1083,7 @@ efreet_mime_shared_mimeinfo_magic_load(const char *file)
  * The indent, range-length, word-size and mask components are optional.
  * If missing, indent defaults to 0, range-length to 1, the word-size to 1,
  * and the mask to all 'one' bits.  In our case, mask is null as it is
- * quicker, uses less memory and will acheive the same exact effect.
+ * quicker, uses less memory and will achieve the same exact effect.
  */
 static void
 efreet_mime_shared_mimeinfo_magic_parse(char *data, int size)
@@ -1446,10 +1456,10 @@ efreet_mime_glob_case_match(char *str, const char *glob)
 }
 
 static void
-efreet_mime_icons_flush(time_t now)
+efreet_mime_icons_flush(double now)
 {
     Eina_Inlist *l;
-    static time_t old = 0;
+    static double old = 0;
     int todo;
 
     if (now - old < EFREET_MIME_ICONS_FLUSH_TIMEOUT)
@@ -1558,7 +1568,7 @@ efreet_mime_icon_entry_add(const char *mime,
         mime_icons_lru = eina_inlist_prepend(mime_icons_lru, l);
     }
 
-    entry->timestamp = (time_t)ecore_loop_time_get();
+    entry->timestamp = ecore_loop_time_get();
     efreet_mime_icons_flush(entry->timestamp);
 }
 
@@ -1588,7 +1598,7 @@ efreet_mime_icon_entry_find(const char *mime,
             if (mime_icons_lru != l)
                 mime_icons_lru = eina_inlist_promote(mime_icons_lru, l);
 
-            entry->timestamp = (time_t)ecore_loop_time_get();
+            entry->timestamp = ecore_loop_time_get();
             return n->icon;
         }
     }
@@ -1600,7 +1610,7 @@ efreet_mime_icon_entry_find(const char *mime,
 static void
 efreet_mime_icons_debug(void)
 {
-    time_t now = (time_t)ecore_loop_time_get();
+    double now = ecore_loop_time_get();
     Efreet_Mime_Icon_Entry_Head *entry;
     EINA_INLIST_FOREACH(mime_icons_lru, entry)
     {

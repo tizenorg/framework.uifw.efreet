@@ -12,11 +12,13 @@
 #include <errno.h>
 
 #include <Eina.h>
+#include <Eet.h>
 #include <Ecore.h>
 #include <Ecore_File.h>
 
 #include "Efreet.h"
 #include "efreet_private.h"
+#include "efreet_cache_private.h"
 
 static Eet_Data_Descriptor *edd = NULL;
 static Eet_File *ef = NULL;
@@ -25,7 +27,32 @@ static Eet_File *util_ef = NULL;
 static Eina_Hash *file_ids = NULL;
 static Eina_Hash *paths = NULL;
 
-int verbose = 0;
+static int verbose = 0;
+
+static char file[PATH_MAX] = { '\0' };
+static char util_file[PATH_MAX] = { '\0' };
+
+static void
+term_handler(int sig __UNUSED__, siginfo_t * info __UNUSED__, void *data __UNUSED__)
+{
+    if (util_file[0]) unlink(util_file);
+    if (file[0]) unlink(file);
+    if (verbose) printf("EXIT\n");
+    exit(1);
+}
+
+static void
+catch_sigterm(void)
+{
+    struct sigaction act;
+
+    act.sa_sigaction = term_handler;
+    act.sa_flags = SA_RESTART | SA_SIGINFO;
+    sigemptyset(&act.sa_mask);
+
+    if (sigaction(SIGTERM, &act, NULL) < 0)
+        perror("sigaction"); /* It's bad if we can't deal with SIGTERM, but not dramatic */
+}
 
 static int
 strcmplen(const void *data1, const void *data2)
@@ -41,8 +68,8 @@ cache_add(const char *path, const char *file_id, int priority __UNUSED__, int *c
 
     if (verbose)
     {
-         printf("FOUND: %s\n", path);
-         if (file_id) printf(" (id): %s\n", file_id);
+        printf("FOUND: %s\n", path);
+        if (file_id) printf(" (id): %s\n", file_id);
     }
     ext = strrchr(path, '.');
     if (!ext || (strcmp(ext, ".desktop") && strcmp(ext, ".directory"))) return 1;
@@ -81,6 +108,8 @@ cache_add(const char *path, const char *file_id, int priority __UNUSED__, int *c
         eina_hash_add(paths, desk->orig_path, (void *)1);
     }
     /* TODO: We should check priority, and not just hope we search in right order */
+    /* TODO: We need to find out if prioritized file id has changed because of
+     * changed search order. */
     if (desk->type == EFREET_DESKTOP_TYPE_APPLICATION &&
         file_id && !eina_hash_find(file_ids, file_id))
     {
@@ -156,28 +185,28 @@ cache_scan(const char *path, const char *base_id, int priority, int recurse, int
     char id[PATH_MAX];
     char buf[PATH_MAX];
     DIR *files;
-    struct dirent *file;
+    struct dirent *ent;
 
     if (!ecore_file_is_dir(path)) return 1;
 
     files = opendir(path);
     if (!files) return 1;
     id[0] = '\0';
-    while ((file = readdir(files)))
+    while ((ent = readdir(files)))
     {
-        if (!file) break;
-        if (!strcmp(file->d_name, ".") || !strcmp(file->d_name, "..")) continue;
+        if (!ent) break;
+        if (!strcmp(ent->d_name, ".") || !strcmp(ent->d_name, "..")) continue;
 
         if (base_id)
         {
             if (*base_id)
-                snprintf(id, sizeof(id), "%s-%s", base_id, file->d_name);
+                snprintf(id, sizeof(id), "%s-%s", base_id, ent->d_name);
             else
-                strcpy(id, file->d_name);
+                strcpy(id, ent->d_name);
             file_id = id;
         }
 
-        snprintf(buf, sizeof(buf), "%s/%s", path, file->d_name);
+        snprintf(buf, sizeof(buf), "%s/%s", path, ent->d_name);
         if (ecore_file_is_dir(buf))
         {
             if (recurse)
@@ -204,17 +233,16 @@ main(int argc, char **argv)
      *   during whilst this program runs.
      * - Maybe linger for a while to reduce number of cache re-creates.
      */
-    char file[PATH_MAX];
-    char util_file[PATH_MAX];
     Eina_List *dirs = NULL, *user_dirs = NULL;
     int priority = 0;
     char *dir = NULL;
     char *path;
-    int fd = -1, tmpfd, dirsfd = -1;
+    int lockfd = -1, tmpfd, dirsfd = -1;
     struct stat st;
     int changed = 0;
     int i;
     struct flock fl;
+    struct sigaction act;
 
     for (i = 1; i < argc; i++)
     {
@@ -232,7 +260,10 @@ main(int argc, char **argv)
     /* init external subsystems */
     if (!eina_init()) goto eina_error;
     if (!eet_init()) goto eet_error;
-    if (!ecore_init()) goto eet_error;
+    if (!ecore_init()) goto ecore_error;
+
+    // Trap SIGTERM for clean shutdown
+    catch_sigterm();
 
     efreet_cache_update = 0;
 
@@ -242,12 +273,12 @@ main(int argc, char **argv)
 
     /* lock process, so that we only run one copy of this program */
     snprintf(file, sizeof(file), "%s/.efreet/desktop_data.lock", efreet_home_dir_get());
-    fd = open(file, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
-    if (fd < 0) goto efreet_error;
+    lockfd = open(file, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
+    if (lockfd < 0) goto efreet_error;
     memset(&fl, 0, sizeof(struct flock));
     fl.l_type = F_WRLCK;
     fl.l_whence = SEEK_SET;
-    if (fcntl(fd, F_SETLK, &fl) < 0)
+    if (fcntl(lockfd, F_SETLK, &fl) < 0)
     {
         if (verbose)
         {
@@ -376,6 +407,12 @@ main(int argc, char **argv)
     eet_close(util_ef);
     eet_close(ef);
 
+    /* Remove signal handler, no need to exit now */
+    act.sa_sigaction = SIG_IGN;
+    act.sa_flags = SA_RESTART | SA_SIGINFO;
+    sigemptyset(&act.sa_mask);
+    sigaction(SIGTERM, &act, NULL);
+
     /* unlink old cache files */
     if (changed)
     {
@@ -397,24 +434,32 @@ main(int argc, char **argv)
         unlink(file);
     }
 
-    efreet_desktop_edd_shutdown(edd);
+    /* touch update file */
+    snprintf(file, sizeof(file), "%s/.efreet/desktop_data.update", efreet_home_dir_get());
+    tmpfd = open(file, O_CREAT | O_WRONLY, S_IRUSR | S_IWUSR);
+    if (tmpfd >= 0)
+    {
+        write(tmpfd, "a", 1);
+        close(tmpfd);
+    }
     efreet_shutdown();
     ecore_shutdown();
     eet_shutdown();
     eina_shutdown();
-    close(fd);
+    close(lockfd);
     return 0;
 error:
     if (dirsfd >= 0) close(dirsfd);
     IF_FREE(dir);
-    efreet_desktop_edd_shutdown(edd);
 edd_error:
     efreet_shutdown();
 efreet_error:
+    ecore_shutdown();
+ecore_error:
     eet_shutdown();
 eet_error:
     eina_shutdown();
 eina_error:
-    if (fd > 0) close(fd);
+    if (lockfd >= 0) close(lockfd);
     return 1;
 }

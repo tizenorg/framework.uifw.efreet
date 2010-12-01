@@ -10,6 +10,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <libgen.h>
+
 #include <Ecore_File.h>
 
 #include "Efreet.h"
@@ -18,6 +19,10 @@
 
 static unsigned int _efreet_trash_init_count = 0;
 static const char *efreet_trash_dir = NULL;
+
+#ifdef _WIN32
+# define getuid() GetCurrentProcessId()
+#endif
 
 /* define macros and variable for using the eina logging system  */
 
@@ -40,10 +45,11 @@ efreet_trash_init(void)
     if (!eina_init())
         return --_efreet_trash_init_count;
 
-    _efreet_trash_log_dom = eina_log_domain_register("Efreet_trash", EFREET_DEFAULT_LOG_COLOR);
+    _efreet_trash_log_dom = eina_log_domain_register
+      ("efreet_trash", EFREET_DEFAULT_LOG_COLOR);
     if (_efreet_trash_log_dom < 0)
     {
-        ERROR("Efreet: Could not create a log domain for Efreet_trash");
+        ERROR("Efreet: Could not create a log domain for efreet_trash");
         eina_shutdown();
         return --_efreet_trash_init_count;
     }

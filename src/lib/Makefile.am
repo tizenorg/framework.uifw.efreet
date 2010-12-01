@@ -23,7 +23,8 @@ efreet_desktop.c \
 efreet_desktop_command.c \
 efreet_menu.c \
 efreet_utils.c \
-efreet_uri.c
+efreet_uri.c \
+efreet_cache.c
 
 includes_HEADERS = $(EFREETHEADERS) Efreet_Mime.h Efreet_Trash.h
 includesdir = $(includedir)/efreet-@VMAJ@
@@ -62,4 +63,4 @@ libefreet_trash_la_CPPFLAGS = \
 libefreet_trash_la_LIBADD = @EFREET_LIBS@ libefreet.la
 libefreet_trash_la_LDFLAGS = -no-undefined @lt_enable_auto_import@ -version-info @version_info@ @release_info@
 
-EXTRA_DIST = efreet_private.h efreet_xml.h
+EXTRA_DIST = efreet_private.h efreet_xml.h efreet_cache_private.h

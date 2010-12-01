@@ -2,12 +2,27 @@
 # include <config.h>
 #endif
 
+#undef alloca
+#ifdef HAVE_ALLOCA_H
+# include <alloca.h>
+#elif defined __GNUC__
+# define alloca __builtin_alloca
+#elif defined _AIX
+# define alloca __alloca
+#elif defined _MSC_VER
+# include <malloc.h>
+# define alloca _alloca
+#else
+# include <stddef.h>
+# ifdef  __cplusplus
+extern "C"
+# endif
+void *alloca (size_t);
+#endif
+
 #include <stdio.h>
 #include <string.h>
 #include <limits.h>
-
-#include <Ecore.h>
-#include <Ecore_File.h>
 
 #include "Efreet.h"
 #include "efreet_private.h"
@@ -49,7 +64,8 @@ static Eina_List  *efreet_dirs_get(const char *key,
 int
 efreet_base_init(void)
 {
-    _efreet_base_log_dom = eina_log_domain_register("Efreet_base", EFREET_DEFAULT_LOG_COLOR);
+    _efreet_base_log_dom = eina_log_domain_register
+      ("efreet_base", EFREET_DEFAULT_LOG_COLOR);
     if (_efreet_base_log_dom < 0)
     {
         ERROR("Efreet: Could not create a log domain for efreet_base.\n");
@@ -232,6 +248,7 @@ efreet_dirs_get(const char *key, const char *fallback)
     Eina_List *dirs = NULL;
     const char *path;
     char *tmp, *s, *p;
+    char ts[PATH_MAX];
     size_t len;
 
     path = getenv(key);
@@ -251,19 +268,20 @@ efreet_dirs_get(const char *key, const char *fallback)
         {
             // resolve path properly/fully to remove path//path2 to
             // path/path2, path/./path2 to path/path2 etc.
-            char *ts = ecore_file_realpath(s);
-            if (ts)
-            {
+            if (realpath(s, ts))
                 dirs = eina_list_append(dirs, (void *)eina_stringshare_add(ts));
-                free(ts);
-            }
         }
 
         s = ++p;
         p = strchr(s, EFREET_PATH_SEP);
     }
     if (!eina_list_search_unsorted(dirs, EINA_COMPARE_CB(strcmp), s))
-        dirs = eina_list_append(dirs, (void *)eina_stringshare_add(s));
+    {
+        // resolve path properly/fully to remove path//path2 to
+        // path/path2, path/./path2 to path/path2 etc.
+        if (realpath(s, ts))
+            dirs = eina_list_append(dirs, (void *)eina_stringshare_add(ts));
+    }
 
     return dirs;
 }

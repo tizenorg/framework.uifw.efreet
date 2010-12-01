@@ -2,10 +2,32 @@
 # include <config.h>
 #endif
 
+#undef alloca
+#ifdef HAVE_ALLOCA_H
+# include <alloca.h>
+#elif defined __GNUC__
+# define alloca __builtin_alloca
+#elif defined _AIX
+# define alloca __alloca
+#elif defined _MSC_VER
+# include <malloc.h>
+# define alloca _alloca
+#else
+# include <stddef.h>
+# ifdef  __cplusplus
+extern "C"
+# endif
+void *alloca (size_t);
+#endif
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <limits.h>
+
+#include <Eet.h>
+#include <Ecore.h>
+#include <Ecore_File.h>
 
 #include "Efreet.h"
 #include "efreet_private.h"
@@ -36,19 +58,25 @@ efreet_init(void)
         return --_efreet_init_count;
     if (!eet_init())
         goto shutdown_eina;
-    _efreet_log_domain_global = eina_log_domain_register("Efreet", EFREET_DEFAULT_LOG_COLOR);
-    if (_efreet_log_domain_global < 0) 
-    {
-        printf("Efreet could create a general log domain.\n");
-
+    if (!ecore_init())
         goto shutdown_eet;
+    if (!ecore_file_init())
+        goto shutdown_ecore;
+    _efreet_log_domain_global = eina_log_domain_register("efreet", EFREET_DEFAULT_LOG_COLOR);
+    if (_efreet_log_domain_global < 0)
+    {
+       EINA_LOG_ERR("Efreet could create a general log domain.");
+        goto shutdown_ecore_file;
     }
 
     if (!efreet_base_init())
         goto unregister_log_domain;
 
-    if (!efreet_xml_init())
+    if (!efreet_cache_init())
         goto shutdown_efreet_base;
+
+    if (!efreet_xml_init())
+        goto shutdown_efreet_cache;
 
     if (!efreet_icon_init())
         goto shutdown_efreet_xml;
@@ -77,10 +105,16 @@ shutdown_efreet_icon:
     efreet_icon_shutdown();
 shutdown_efreet_xml:
     efreet_xml_shutdown();
+shutdown_efreet_cache:
+    efreet_cache_shutdown();
 shutdown_efreet_base:
     efreet_base_shutdown();
 unregister_log_domain:
     eina_log_domain_unregister(_efreet_log_domain_global);
+shutdown_ecore_file:
+    ecore_file_shutdown();
+shutdown_ecore:
+    ecore_shutdown();
 shutdown_eet:
     eet_shutdown();
 shutdown_eina:
@@ -107,6 +141,7 @@ efreet_shutdown(void)
     efreet_ini_shutdown();
     efreet_icon_shutdown();
     efreet_xml_shutdown();
+    efreet_cache_shutdown();
     efreet_base_shutdown();
     eina_log_domain_unregister(_efreet_log_domain_global);
 
@@ -115,6 +150,8 @@ efreet_shutdown(void)
     IF_RELEASE(efreet_lang_modifier);
     efreet_parsed_locale = 0;  /* reset this in case they init efreet again */
 
+    ecore_file_shutdown();
+    ecore_shutdown();
     eet_shutdown();
     eina_shutdown();
 
