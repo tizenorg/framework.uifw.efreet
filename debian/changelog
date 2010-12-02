@@ -1,3 +1,12 @@
+efreet (1.0.0.001+svn.55094slp2+build01) unstable; urgency=low
+
+  * [SVN 55094 Merge]
+  * Update to SVN Revision 55094.
+  * Git: 165.213.180.234:/git/slp/pkgs/efreet
+  * Tag: efreet_1.0.0.001+svn.55094slp2+build01 
+
+ -- Myoungwoon Kim <myoungwoon.kim@samsung.com>  Thu, 02 Dec 2010 14:39:13 +0900
+
 efreet (1.0.0.001+svn.51480slp2+build04) unstable; urgency=low
 
   * [SVN 54834 Merge]
