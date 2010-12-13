@@ -34,20 +34,26 @@ static int _efreet_cache_log_dom = -1;
  */
 #ifdef ICON_CACHE
 static Eet_Data_Descriptor *directory_edd = NULL;
-static Eet_Data_Descriptor *cache_theme_edd = NULL;
-static Eet_Data_Descriptor *cache_fallback_edd = NULL;
+static Eet_Data_Descriptor *icon_theme_edd = NULL;
+static Eet_Data_Descriptor *icon_theme_directory_edd = NULL;
+static Eet_Data_Descriptor *icons_edd = NULL;
+static Eet_Data_Descriptor *fallback_edd = NULL;
 
-static Eet_Data_Descriptor *icon_element_pointer_edd;
-static Eet_Data_Descriptor *icon_element_edd;
-static Eet_Data_Descriptor *icon_edd;
+static Eet_Data_Descriptor *icon_fallback_edd = NULL;
+static Eet_Data_Descriptor *icon_element_pointer_edd = NULL;
+static Eet_Data_Descriptor *icon_element_edd = NULL;
+static Eet_Data_Descriptor *icon_edd = NULL;
 
-static Eet_File            *cache = NULL;
+static Eet_File            *icon_cache = NULL;
+
+static const char          *icon_theme_cache_file = NULL;
 
 static const char          *theme_name = NULL;
-static Efreet_Cache_Theme  *theme_cache = NULL;
-static Efreet_Cache_Theme  *fallback_cache = NULL;
+static Efreet_Cache_Icons  *theme_cache = NULL;
+static Efreet_Cache_Icons  *fallback_cache = NULL;
 #endif
 
+static Eet_Data_Descriptor *version_edd = NULL;
 static Eet_Data_Descriptor *desktop_edd = NULL;
 
 static Eet_File            *desktop_cache = NULL;
@@ -69,10 +75,10 @@ static int                  desktop_cache_exe_lock = -1;
 static Eina_List           *old_desktop_caches = NULL;
 
 #ifdef ICON_CACHE
-static void efreet_icon_edd_shutdown(void);
-static Efreet_Cache_Theme *_efreet_cache_free(Efreet_Cache_Theme *cache);
+static Efreet_Cache_Icons *_efreet_cache_free(Efreet_Cache_Icons *cache);
+static Efreet_Cache_Icons *_efreet_cache_fallback_free(Efreet_Cache_Icons *cache);
 #endif
-static void efreet_desktop_edd_shutdown(void);
+static void efreet_cache_edd_shutdown(void);
 
 static Eina_Bool cache_exe_cb(void *data, int type, void *event);
 static void cache_update_cb(void *data, Ecore_File_Monitor *em,
@@ -84,9 +90,7 @@ static void icon_cache_update_cache_job(void *data);
 #endif
 static void desktop_cache_update_free(void *data, void *ev);
 
-#ifdef ICON_CACHE
 EAPI int EFREET_EVENT_ICON_CACHE_UPDATE = 0;
-#endif
 EAPI int EFREET_EVENT_DESKTOP_CACHE_UPDATE = 0;
 
 int
@@ -97,15 +101,13 @@ efreet_cache_init(void)
     _efreet_cache_log_dom = eina_log_domain_register("efreet_cache", EFREET_DEFAULT_LOG_COLOR);
     if (_efreet_cache_log_dom < 0)
         return 0;
-    if (!efreet_desktop_edd_init())
-        goto error;
 
 #ifdef ICON_CACHE
     EFREET_EVENT_ICON_CACHE_UPDATE = ecore_event_type_new();
 #endif
     EFREET_EVENT_DESKTOP_CACHE_UPDATE = ecore_event_type_new();
 
-    snprintf(buf, sizeof(buf), "%s/.efreet", efreet_home_dir_get());
+    snprintf(buf, sizeof(buf), "%s/efreet", efreet_cache_home_get());
     if (!ecore_file_mkpath(buf)) goto error;
 
     if (efreet_cache_update)
@@ -131,10 +133,7 @@ error:
     cache_exe_handler = NULL;
     if (cache_monitor) ecore_file_monitor_del(cache_monitor);
     cache_monitor = NULL;
-#ifdef ICON_CACHE
-    efreet_icon_edd_shutdown();
-#endif
-    efreet_desktop_edd_shutdown();
+    efreet_cache_edd_shutdown();
     return 0;
 }
 
@@ -145,17 +144,15 @@ efreet_cache_shutdown(void)
 
 #ifdef ICON_CACHE
     theme_cache = _efreet_cache_free(theme_cache);
-    fallback_cache = _efreet_cache_free(fallback_cache);
+    fallback_cache = _efreet_cache_fallback_free(fallback_cache);
 
     if (theme_name) eina_stringshare_del(theme_name);
     theme_name = NULL;
 
-    if (cache) eet_close(cache);
-    cache = NULL;
+    icon_cache = efreet_cache_close(icon_cache);
 #endif
 
-    if (desktop_cache) eet_close(desktop_cache);
-    desktop_cache = NULL;
+    desktop_cache = efreet_cache_close(desktop_cache);
     IF_RELEASE(desktop_cache_file);
     IF_RELEASE(desktop_cache_dirs);
 
@@ -164,18 +161,14 @@ efreet_cache_shutdown(void)
     if (cache_monitor) ecore_file_monitor_del(cache_monitor);
     cache_monitor = NULL;
 
-#ifdef ICON_CACHE
-    efreet_icon_edd_shutdown();
-#endif
-
-    efreet_desktop_edd_shutdown();
+    efreet_cache_edd_shutdown();
     if (desktop_cache_job)
     {
         ecore_job_del(desktop_cache_job);
         desktop_cache_job = NULL;
     }
 #ifdef ICON_CACHE
-    if (icon_cache_exe) ecore_exe_terminate(icon_cache_exe);
+    IF_RELEASE(icon_theme_cache_file);
     if (icon_cache_exe_lock > 0)
     {
         close(icon_cache_exe_lock);
@@ -183,7 +176,6 @@ efreet_cache_shutdown(void)
     }
 #endif
 
-    if (desktop_cache_exe) ecore_exe_terminate(desktop_cache_exe);
     if (desktop_cache_exe_lock > 0)
     {
         close(desktop_cache_exe_lock);
@@ -207,15 +199,54 @@ EAPI const char *
 efreet_icon_cache_file(void)
 {
     static char cache_file[PATH_MAX] = { '\0' };
-    const char *home;
+    const char *cache;
 
-    home = efreet_home_dir_get();
+    cache = efreet_cache_home_get();
 
-    snprintf(cache_file, sizeof(cache_file), "%s/.efreet/icons.eet", home);
+    snprintf(cache_file, sizeof(cache_file), "%s/efreet/icons_%s.eet", cache, efreet_hostname_get());
 
     return cache_file;
 }
+
+/*
+ * Needs EAPI because of helper binaries
+ */
+EAPI const char *
+efreet_icon_theme_cache_file(void)
+{
+    char tmp[PATH_MAX] = { '\0' };
+
+    if (icon_theme_cache_file) return icon_theme_cache_file;
+
+    snprintf(tmp, sizeof(tmp), "%s/efreet/icon_themes_%s.eet",
+             efreet_cache_home_get(), efreet_hostname_get());
+    icon_theme_cache_file = eina_stringshare_add(tmp);
+
+    return icon_theme_cache_file;
+}
 #endif
+
+/*
+ * Needs EAPI because of helper binaries
+ */
+EAPI Eet_Data_Descriptor *
+efreet_version_edd(void)
+{
+    Eet_Data_Descriptor_Class eddc;
+
+    if (version_edd) return version_edd;
+
+    EET_EINA_FILE_DATA_DESCRIPTOR_CLASS_SET(&eddc, Efreet_Cache_Version);
+    version_edd = eet_data_descriptor_file_new(&eddc);
+    if (!version_edd) return NULL;
+
+    EET_DATA_DESCRIPTOR_ADD_BASIC(version_edd, Efreet_Cache_Version,
+                                  "minor", minor, EET_T_UCHAR);
+    EET_DATA_DESCRIPTOR_ADD_BASIC(version_edd, Efreet_Cache_Version,
+                                  "major", major, EET_T_UCHAR);
+
+    return version_edd;
+}
 
 /*
  * Needs EAPI because of helper binaries
@@ -224,23 +255,23 @@ EAPI const char *
 efreet_desktop_cache_file(void)
 {
     char tmp[PATH_MAX] = { '\0' };
-    const char *home, *lang, *country, *modifier;
+    const char *cache, *lang, *country, *modifier;
 
     if (desktop_cache_file) return desktop_cache_file;
 
-    home = efreet_home_dir_get();
+    cache = efreet_cache_home_get();
     lang = efreet_lang_get();
     country = efreet_lang_country_get();
     modifier = efreet_lang_modifier_get();
 
     if (lang && country && modifier)
-        snprintf(tmp, sizeof(tmp), "%s/.efreet/desktop_%s_%s@%s.cache", home, lang, country, modifier);
+        snprintf(tmp, sizeof(tmp), "%s/efreet/desktop_%s_%s_%s@%s.eet", cache, efreet_hostname_get(), lang, country, modifier);
     else if (lang && country)
-        snprintf(tmp, sizeof(tmp), "%s/.efreet/desktop_%s_%s.cache", home, lang, country);
+        snprintf(tmp, sizeof(tmp), "%s/efreet/desktop_%s_%s_%s.eet", cache, efreet_hostname_get(), lang, country);
     else if (lang)
-        snprintf(tmp, sizeof(tmp), "%s/.efreet/desktop_%s.cache", home, lang);
+        snprintf(tmp, sizeof(tmp), "%s/efreet/desktop_%s_%s.eet", cache, efreet_hostname_get(), lang);
     else
-        snprintf(tmp, sizeof(tmp), "%s/.efreet/desktop.cache", home);
+        snprintf(tmp, sizeof(tmp), "%s/efreet/desktop_%s.eet", cache, efreet_hostname_get());
 
     desktop_cache_file = eina_stringshare_add(tmp);
     return desktop_cache_file;
@@ -256,10 +287,32 @@ efreet_desktop_cache_dirs(void)
 
     if (desktop_cache_dirs) return desktop_cache_dirs;
 
-    snprintf(tmp, sizeof(tmp), "%s/.efreet/desktop_dirs.cache", efreet_home_dir_get());
+    snprintf(tmp, sizeof(tmp), "%s/efreet/desktop_dirs.cache", efreet_cache_home_get());
 
     desktop_cache_dirs = eina_stringshare_add(tmp);
     return desktop_cache_dirs;
+}
+
+#define EDD_SHUTDOWN(Edd)                       \
+    if (Edd) eet_data_descriptor_free(Edd);       \
+Edd = NULL;
+
+static void
+efreet_cache_edd_shutdown(void)
+{
+    EDD_SHUTDOWN(version_edd);
+    EDD_SHUTDOWN(desktop_edd);
+#ifdef ICON_CACHE
+    EDD_SHUTDOWN(fallback_edd);
+    EDD_SHUTDOWN(icon_theme_edd);
+    EDD_SHUTDOWN(icon_theme_directory_edd);
+    EDD_SHUTDOWN(icons_edd);
+    EDD_SHUTDOWN(directory_edd);
+    EDD_SHUTDOWN(icon_fallback_edd);
+    EDD_SHUTDOWN(icon_element_pointer_edd);
+    EDD_SHUTDOWN(icon_element_edd);
+    EDD_SHUTDOWN(icon_edd);
+#endif
 }
 
 #ifdef ICON_CACHE
@@ -278,57 +331,56 @@ efreet_desktop_cache_dirs(void)
                                 "pointer", pointer, Edd_Source);       \
 }
 
-static Efreet_Cache_Theme *
-_efreet_cache_free(Efreet_Cache_Theme *c)
+static Efreet_Cache_Icons *
+_efreet_cache_free(Efreet_Cache_Icons *c)
 {
-   if (!c) return NULL;
+    if (!c) return NULL;
 
-   if (c->icons) eina_hash_free(c->icons);
-   if (c->dirs) eina_hash_free(c->dirs);
-   free(c);
+    if (c->icons) efreet_hash_free(c->icons, EINA_FREE_CB(efreet_cache_icon_free));
+    if (c->dirs) efreet_hash_free(c->dirs, free);
+    free(c);
 
-   return NULL;
+    return NULL;
 }
 
-static void *
-_efreet_icon_hash_add(void *h, const char *key, void *d)
+static Efreet_Cache_Icons *
+_efreet_cache_fallback_free(Efreet_Cache_Icons *c)
 {
-    Eina_Hash *hash = h;
+    if (!c) return NULL;
 
-    if (!hash) hash = eina_hash_string_superfast_new((Eina_Free_Cb) efreet_cache_icon_free);
-    if (!hash) return NULL;
+    if (c->icons) efreet_hash_free(c->icons, EINA_FREE_CB(efreet_cache_icon_fallback_free));
+    if (c->dirs) efreet_hash_free(c->dirs, free);
+    free(c);
 
-    eina_hash_direct_add(hash, key, d);
-
-    return hash;
+    return NULL;
 }
 
 static Eet_Data_Descriptor *
 efreet_icon_directory_edd(void)
 {
-   Eet_Data_Descriptor_Class eddc;
+    Eet_Data_Descriptor_Class eddc;
 
-   if (directory_edd) return directory_edd;
+    if (directory_edd) return directory_edd;
 
-   EET_EINA_FILE_DATA_DESCRIPTOR_CLASS_SET(&eddc, Efreet_Cache_Directory);
-   directory_edd = eet_data_descriptor_file_new(&eddc);
-   if (!directory_edd) return NULL;
+    EET_EINA_FILE_DATA_DESCRIPTOR_CLASS_SET(&eddc, Efreet_Cache_Directory);
+    directory_edd = eet_data_descriptor_file_new(&eddc);
+    if (!directory_edd) return NULL;
 
-   EET_DATA_DESCRIPTOR_ADD_BASIC(directory_edd, Efreet_Cache_Directory,
-                                 "modified_time", modified_time, EET_T_LONG_LONG);
+    EET_DATA_DESCRIPTOR_ADD_BASIC(directory_edd, Efreet_Cache_Directory,
+                                  "modified_time", modified_time, EET_T_LONG_LONG);
 
-   return directory_edd;
+    return directory_edd;
 }
 
 /*
  * Needs EAPI because of helper binaries
  */
 EAPI Eet_Data_Descriptor *
-efreet_icon_theme_edd(Eina_Bool include_dirs)
+efreet_icons_edd(Eina_Bool include_dirs)
 {
     Eet_Data_Descriptor_Class eddc;
 
-    if (cache_theme_edd) return cache_theme_edd;
+    if (icons_edd) return icons_edd;
 
     EET_EINA_FILE_DATA_DESCRIPTOR_CLASS_SET(&eddc, Efreet_Cache_Icon_Element);
     icon_element_edd = eet_data_descriptor_file_new(&eddc);
@@ -359,47 +411,83 @@ efreet_icon_theme_edd(Eina_Bool include_dirs)
                                       "icons", icons, icon_element_pointer_edd);
 
     EET_EINA_FILE_DATA_DESCRIPTOR_CLASS_SET(&eddc, Efreet_Cache_Icon);
-    eddc.func.hash_add = _efreet_icon_hash_add;
-    cache_theme_edd = eet_data_descriptor_file_new(&eddc);
-    if (!cache_theme_edd) return NULL;
+    icons_edd = eet_data_descriptor_file_new(&eddc);
+    if (!icons_edd) return NULL;
 
-    EET_DATA_DESCRIPTOR_ADD_BASIC(cache_theme_edd, Efreet_Cache_Theme,
-                                  "version.minor", version.minor, EET_T_UCHAR);
-    EET_DATA_DESCRIPTOR_ADD_BASIC(cache_theme_edd, Efreet_Cache_Theme,
-                                  "version.major", version.major, EET_T_UCHAR);
-    EET_DATA_DESCRIPTOR_ADD_HASH(cache_theme_edd, Efreet_Cache_Theme,
+    EET_DATA_DESCRIPTOR_ADD_HASH(icons_edd, Efreet_Cache_Icons,
                                  "icons", icons, icon_edd);
 
     if (include_dirs)
-      EET_DATA_DESCRIPTOR_ADD_HASH(cache_theme_edd, Efreet_Cache_Theme,
+      EET_DATA_DESCRIPTOR_ADD_HASH(icons_edd, Efreet_Cache_Icons,
                                    "dirs", dirs, efreet_icon_directory_edd());
 
-    return cache_theme_edd;
-}
-
-static void *
-_efreet_icon_fallback_hash_add(void *h, const char *key, void *d)
-{
-    Eina_Hash *hash = h;
-
-    if (!hash) hash = eina_hash_string_superfast_new((Eina_Free_Cb) efreet_cache_icon_fallback_free);
-    if (!hash) return NULL;
-
-    eina_hash_direct_add(hash, key, d);
-
-    return hash;
+    return icons_edd;
 }
 
 /*
  * Needs EAPI because of helper binaries
  */
 EAPI Eet_Data_Descriptor *
-efreet_icon_fallback_edd(Eina_Bool include_dirs)
+efreet_icon_theme_edd(void)
 {
     Eet_Data_Descriptor_Class eddc;
-    Eet_Data_Descriptor *icon_fallback_edd;
 
-    if (cache_fallback_edd) return cache_fallback_edd;
+    if (icon_theme_edd) return icon_theme_edd;
+
+    EET_EINA_FILE_DATA_DESCRIPTOR_CLASS_SET(&eddc, Efreet_Icon_Theme_Directory);
+    icon_theme_directory_edd = eet_data_descriptor_file_new(&eddc);
+    if (!icon_theme_directory_edd) return NULL;
+
+    EET_DATA_DESCRIPTOR_ADD_BASIC(icon_theme_directory_edd, Efreet_Icon_Theme_Directory,
+                                  "name", name, EET_T_STRING);
+    EET_DATA_DESCRIPTOR_ADD_BASIC(icon_theme_directory_edd, Efreet_Icon_Theme_Directory,
+                                  "context", context, EET_T_UCHAR);
+    EET_DATA_DESCRIPTOR_ADD_BASIC(icon_theme_directory_edd, Efreet_Icon_Theme_Directory,
+                                  "type", type, EET_T_UCHAR);
+    EET_DATA_DESCRIPTOR_ADD_BASIC(icon_theme_directory_edd, Efreet_Icon_Theme_Directory,
+                                  "size.normal", size.normal, EET_T_UINT);
+    EET_DATA_DESCRIPTOR_ADD_BASIC(icon_theme_directory_edd, Efreet_Icon_Theme_Directory,
+                                  "size.min", size.min, EET_T_UINT);
+    EET_DATA_DESCRIPTOR_ADD_BASIC(icon_theme_directory_edd, Efreet_Icon_Theme_Directory,
+                                  "size.max", size.max, EET_T_UINT);
+    EET_DATA_DESCRIPTOR_ADD_BASIC(icon_theme_directory_edd, Efreet_Icon_Theme_Directory,
+                                  "size.threshold", size.threshold, EET_T_UINT);
+
+    EET_EINA_FILE_DATA_DESCRIPTOR_CLASS_SET(&eddc, Efreet_Icon_Theme);
+    icon_theme_edd = eet_data_descriptor_file_new(&eddc);
+    if (!icon_theme_edd) return NULL;
+
+    EET_DATA_DESCRIPTOR_ADD_BASIC(icon_theme_edd, Efreet_Icon_Theme,
+                                  "name.internal", name.internal, EET_T_STRING);
+    EET_DATA_DESCRIPTOR_ADD_BASIC(icon_theme_edd, Efreet_Icon_Theme,
+                                  "name.name", name.name, EET_T_STRING);
+    EET_DATA_DESCRIPTOR_ADD_BASIC(icon_theme_edd, Efreet_Icon_Theme,
+                                  "comment", comment, EET_T_STRING);
+    EET_DATA_DESCRIPTOR_ADD_BASIC(icon_theme_edd, Efreet_Icon_Theme,
+                                  "example_icon", example_icon, EET_T_STRING);
+
+    eet_data_descriptor_element_add(icon_theme_edd, "paths", EET_T_STRING, EET_G_LIST,
+                                    offsetof(Efreet_Icon_Theme, paths), 0, NULL, NULL);
+    eet_data_descriptor_element_add(icon_theme_edd, "inherits", EET_T_STRING, EET_G_LIST,
+                                    offsetof(Efreet_Icon_Theme, inherits), 0, NULL, NULL);
+    EET_DATA_DESCRIPTOR_ADD_LIST(icon_theme_edd, Efreet_Icon_Theme,
+                                  "directories", directories, icon_theme_directory_edd);
+
+    EET_DATA_DESCRIPTOR_ADD_BASIC(icon_theme_edd, Efreet_Icon_Theme,
+                                  "last_cache_check", last_cache_check, EET_T_DOUBLE);
+
+    return icon_theme_edd;
+}
+
+/*
+ * Needs EAPI because of helper binaries
+ */
+EAPI Eet_Data_Descriptor *
+efreet_icons_fallback_edd(Eina_Bool include_dirs)
+{
+    Eet_Data_Descriptor_Class eddc;
+
+    if (fallback_edd) return fallback_edd;
 
     EET_EINA_FILE_DATA_DESCRIPTOR_CLASS_SET(&eddc, Efreet_Cache_Fallback_Icon);
     icon_fallback_edd = eet_data_descriptor_file_new(&eddc);
@@ -409,37 +497,17 @@ efreet_icon_fallback_edd(Eina_Bool include_dirs)
                                              Efreet_Cache_Fallback_Icon, "icons", icons);
 
     EET_EINA_FILE_DATA_DESCRIPTOR_CLASS_SET(&eddc, Efreet_Cache_Icon);
-    eddc.func.hash_add = _efreet_icon_fallback_hash_add;
-    cache_fallback_edd = eet_data_descriptor_file_new(&eddc);
-    if (!cache_fallback_edd) return NULL;
+    fallback_edd = eet_data_descriptor_file_new(&eddc);
+    if (!fallback_edd) return NULL;
 
-    EET_DATA_DESCRIPTOR_ADD_BASIC(cache_fallback_edd, Efreet_Cache_Theme,
-                                  "version.minor", version.minor, EET_T_UCHAR);
-    EET_DATA_DESCRIPTOR_ADD_BASIC(cache_fallback_edd, Efreet_Cache_Theme,
-                                  "version.major", version.major, EET_T_UCHAR);
-    EET_DATA_DESCRIPTOR_ADD_HASH(cache_fallback_edd, Efreet_Cache_Theme,
+    EET_DATA_DESCRIPTOR_ADD_HASH(fallback_edd, Efreet_Cache_Icons,
                                  "icons", icons, icon_fallback_edd);
 
     if (include_dirs)
-      EET_DATA_DESCRIPTOR_ADD_HASH(cache_theme_edd, Efreet_Cache_Theme,
+      EET_DATA_DESCRIPTOR_ADD_HASH(fallback_edd, Efreet_Cache_Icons,
                                    "dirs", dirs, efreet_icon_directory_edd());
 
-    return cache_fallback_edd;
-}
-
-#define EDD_SHUTDOWN(Edd)                       \
-    if (Edd) eet_data_descriptor_free(Edd);       \
-Edd = NULL;
-
-static void
-efreet_icon_edd_shutdown(void)
-{
-    EDD_SHUTDOWN(cache_fallback_edd);
-    EDD_SHUTDOWN(cache_theme_edd);
-    EDD_SHUTDOWN(directory_edd);
-    EDD_SHUTDOWN(icon_element_pointer_edd);
-    EDD_SHUTDOWN(icon_element_edd);
-    EDD_SHUTDOWN(icon_edd);
+    return fallback_edd;
 }
 #endif
 
@@ -447,7 +515,7 @@ efreet_icon_edd_shutdown(void)
  * Needs EAPI because of helper binaries
  */
 EAPI Eet_Data_Descriptor *
-efreet_desktop_edd_init(void)
+efreet_desktop_edd(void)
 {
     Eet_Data_Descriptor_Class eddc;
 
@@ -483,13 +551,6 @@ efreet_desktop_edd_init(void)
     return desktop_edd;
 }
 
-static void
-efreet_desktop_edd_shutdown(void)
-{
-    if (desktop_edd) eet_data_descriptor_free(desktop_edd);
-    desktop_edd = NULL;
-}
-
 #ifdef ICON_CACHE
 /*
  * Needs EAPI because of helper binaries
@@ -514,7 +575,7 @@ efreet_cache_icon_free(Efreet_Cache_Icon *icon)
 EAPI void
 efreet_cache_icon_fallback_free(Efreet_Cache_Fallback_Icon *icon)
 {
-    if (!icon) return ;
+    if (!icon) return;
 
     free(icon->icons);
     free(icon);
@@ -523,8 +584,7 @@ efreet_cache_icon_fallback_free(Efreet_Cache_Fallback_Icon *icon)
 Efreet_Cache_Icon *
 efreet_cache_icon_find(Efreet_Icon_Theme *theme, const char *icon)
 {
-    if (!cache) cache = eet_open(efreet_icon_cache_file(), EET_FILE_MODE_READ);
-    if (!cache) return NULL;
+    if (!efreet_cache_check(&icon_cache, efreet_icon_cache_file(), EFREET_ICON_CACHE_MAJOR)) return NULL;
 
     if (theme_name && strcmp(theme_name, theme->name.internal))
     {
@@ -538,14 +598,14 @@ efreet_cache_icon_find(Efreet_Icon_Theme *theme, const char *icon)
     if (!theme_name)
     {
         INFO("loading theme %s", theme->name.internal);
-        theme_cache = eet_data_read(cache, efreet_icon_theme_edd(EINA_FALSE), theme->name.internal);
+        theme_cache = eet_data_read(icon_cache, efreet_icons_edd(EINA_FALSE), theme->name.internal);
         if (theme_cache && !theme_cache->icons)
-            theme_cache->icons = eina_hash_string_superfast_new((Eina_Free_Cb) efreet_cache_icon_free);
+            theme_cache->icons = eina_hash_string_superfast_new(NULL);
         if (theme_cache)
             theme_name = eina_stringshare_add(theme->name.internal);
     }
 
-    if (!theme_cache || theme_cache->version.major != EFREET_CACHE_MAJOR) return NULL;
+    if (!theme_cache) return NULL;
 
     return eina_hash_find(theme_cache->icons, icon);
 }
@@ -553,18 +613,17 @@ efreet_cache_icon_find(Efreet_Icon_Theme *theme, const char *icon)
 Efreet_Cache_Fallback_Icon *
 efreet_cache_icon_fallback_find(const char *icon)
 {
-    if (!cache) cache = eet_open(efreet_icon_cache_file(), EET_FILE_MODE_READ);
-    if (!cache) return NULL;
+    if (!efreet_cache_check(&icon_cache, efreet_icon_cache_file(), EFREET_ICON_CACHE_MAJOR)) return NULL;
 
     if (!fallback_cache)
     {
         INFO("loading fallback cache");
-        fallback_cache = eet_data_read(cache, efreet_icon_fallback_edd(EINA_FALSE), "efreet/fallback");
+        fallback_cache = eet_data_read(icon_cache, efreet_icons_fallback_edd(EINA_FALSE), EFREET_CACHE_ICON_FALLBACK);
         if (fallback_cache && !fallback_cache->icons)
-            fallback_cache->icons = eina_hash_string_superfast_new((Eina_Free_Cb) efreet_cache_icon_fallback_free);
+            fallback_cache->icons = eina_hash_string_superfast_new(NULL);
     }
 
-    if (!fallback_cache || fallback_cache->version.major != EFREET_CACHE_MAJOR) return NULL;
+    if (!fallback_cache) return NULL;
 
     return eina_hash_find(fallback_cache->icons, icon);
 }
@@ -578,12 +637,9 @@ efreet_cache_desktop_find(const char *file)
 
     if (!realpath(file, rp)) return NULL;
 
-    if (!desktop_cache)
-        desktop_cache = eet_open(efreet_desktop_cache_file(), EET_FILE_MODE_READ);
-    if (!desktop_cache)
-        return NULL;
+    if (!efreet_cache_check(&desktop_cache, efreet_desktop_cache_file(), EFREET_DESKTOP_CACHE_MAJOR)) return NULL;
 
-    desktop = eet_data_read(desktop_cache, desktop_edd, rp);
+    desktop = eet_data_read(desktop_cache, efreet_desktop_edd(), rp);
     if (!desktop) return NULL;
     desktop->ref = 1;
     desktop->eet = 1;
@@ -637,6 +693,40 @@ efreet_cache_desktop_free(Efreet_Desktop *desktop)
     }
 }
 
+Eina_Bool
+efreet_cache_check(Eet_File **ef, const char *path, int major)
+{
+    Efreet_Cache_Version *version;
+
+    if (*ef == NON_EXISTING) return EINA_FALSE;
+    if (!*ef)
+        *ef = eet_open(path, EET_FILE_MODE_READ);
+    if (!*ef)
+    {
+        *ef = NON_EXISTING;
+        return EINA_FALSE;
+    }
+
+    version = eet_data_read(*ef, efreet_version_edd(), EFREET_CACHE_VERSION);
+    if ((!version) || (version->major != major))
+    {
+        IF_FREE(version);
+        eet_close(*ef);
+        *ef = NON_EXISTING;
+        return EINA_FALSE;
+    }
+    free(version);
+    return EINA_TRUE;
+}
+
+void *
+efreet_cache_close(Eet_File *ef)
+{
+    if (ef && ef != NON_EXISTING)
+        eet_close(ef);
+    return NULL;
+}
+
 static Eina_Bool
 cache_exe_cb(void *data __UNUSED__, int type __UNUSED__, void *event)
 {
@@ -672,7 +762,6 @@ cache_update_cb(void *data __UNUSED__, Ecore_File_Monitor *em __UNUSED__,
 {
     const char *file;
     Efreet_Event_Cache_Update *ev = NULL;
-    Eet_File *tmp = NULL;
     Efreet_Old_Cache *d = NULL;
 
     if (event != ECORE_FILE_EVENT_CREATED_FILE &&
@@ -682,8 +771,6 @@ cache_update_cb(void *data __UNUSED__, Ecore_File_Monitor *em __UNUSED__,
     if (!file) return;
     if (!strcmp(file, "desktop_data.update"))
     {
-        tmp = eet_open(efreet_desktop_cache_file(), EET_FILE_MODE_READ);
-        if (!tmp) return;
         ev = NEW(Efreet_Event_Cache_Update, 1);
         if (!ev) goto error;
         d = NEW(Efreet_Old_Cache, 1);
@@ -694,13 +781,13 @@ cache_update_cb(void *data __UNUSED__, Ecore_File_Monitor *em __UNUSED__,
         old_desktop_caches = eina_list_append(old_desktop_caches, d);
 
         efreet_desktop_cache = eina_hash_string_superfast_new(NULL);
-        desktop_cache = tmp;
+        desktop_cache = NULL;
 
         efreet_util_desktop_cache_reload();
         ecore_event_add(EFREET_EVENT_DESKTOP_CACHE_UPDATE, ev, desktop_cache_update_free, d);
     }
 #ifdef ICON_CACHE
-    else if (!strcmp(file, efreet_icon_cache_file()))
+    else if (!strcmp(file, "icon_data.update"))
     {
         if (theme_cache)
         {
@@ -714,11 +801,10 @@ cache_update_cb(void *data __UNUSED__, Ecore_File_Monitor *em __UNUSED__,
         if (fallback_cache)
         {
             INFO("Destroying fallback cache due to cache change.");
-            fallback_cache = _efreet_cache_free(fallback_cache);
+            fallback_cache = _efreet_cache_fallback_free(fallback_cache);
         }
 
-        if (cache) eet_close(cache);
-        cache = NULL;
+        icon_cache = efreet_cache_close(icon_cache);
 
         ev = NEW(Efreet_Event_Cache_Update, 1);
         if (!ev) return;
@@ -729,7 +815,6 @@ cache_update_cb(void *data __UNUSED__, Ecore_File_Monitor *em __UNUSED__,
 error:
     IF_FREE(ev);
     IF_FREE(d);
-    if (tmp) eet_close(tmp);
 }
 
 static void
@@ -746,7 +831,7 @@ desktop_cache_update_cache_job(void *data __UNUSED__)
 
     if (!efreet_desktop_write_cache_dirs_file()) return;
 
-    snprintf(file, sizeof(file), "%s/.efreet/desktop_exec.lock", efreet_home_dir_get());
+    snprintf(file, sizeof(file), "%s/efreet/desktop_exec.lock", efreet_cache_home_get());
 
     desktop_cache_exe_lock = open(file, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
     if (desktop_cache_exe_lock < 0) return;
@@ -783,7 +868,7 @@ icon_cache_update_cache_job(void *data __UNUSED__)
     /* TODO: Retry update cache later */
     if (icon_cache_exe_lock > 0) return;
 
-    snprintf(file, sizeof(file), "%s/.efreet/icon_exec.lock", efreet_home_dir_get());
+    snprintf(file, sizeof(file), "%s/efreet/icon_exec.lock", efreet_cache_home_get());
 
     icon_cache_exe_lock = open(file, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
     if (icon_cache_exe_lock < 0) return;
@@ -841,7 +926,7 @@ desktop_cache_update_free(void *data, void *ev)
      */
     if (dangling == 0)
     {
-        if (d->ef) eet_close(d->ef);
+        efreet_cache_close(d->ef);
     }
     else
     {

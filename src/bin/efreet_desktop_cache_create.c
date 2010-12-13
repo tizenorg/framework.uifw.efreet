@@ -29,31 +29,6 @@ static Eina_Hash *paths = NULL;
 
 static int verbose = 0;
 
-static char file[PATH_MAX] = { '\0' };
-static char util_file[PATH_MAX] = { '\0' };
-
-static void
-term_handler(int sig __UNUSED__, siginfo_t * info __UNUSED__, void *data __UNUSED__)
-{
-    if (util_file[0]) unlink(util_file);
-    if (file[0]) unlink(file);
-    if (verbose) printf("EXIT\n");
-    exit(1);
-}
-
-static void
-catch_sigterm(void)
-{
-    struct sigaction act;
-
-    act.sa_sigaction = term_handler;
-    act.sa_flags = SA_RESTART | SA_SIGINFO;
-    sigemptyset(&act.sa_mask);
-
-    if (sigaction(SIGTERM, &act, NULL) < 0)
-        perror("sigaction"); /* It's bad if we can't deal with SIGTERM, but not dramatic */
-}
-
 static int
 strcmplen(const void *data1, const void *data2)
 {
@@ -233,6 +208,7 @@ main(int argc, char **argv)
      *   during whilst this program runs.
      * - Maybe linger for a while to reduce number of cache re-creates.
      */
+    Efreet_Cache_Version version;
     Eina_List *dirs = NULL, *user_dirs = NULL;
     int priority = 0;
     char *dir = NULL;
@@ -242,7 +218,9 @@ main(int argc, char **argv)
     int changed = 0;
     int i;
     struct flock fl;
-    struct sigaction act;
+    char file[PATH_MAX] = { '\0' };
+    char util_file[PATH_MAX] = { '\0' };
+
 
     for (i = 1; i < argc; i++)
     {
@@ -262,17 +240,14 @@ main(int argc, char **argv)
     if (!eet_init()) goto eet_error;
     if (!ecore_init()) goto ecore_error;
 
-    // Trap SIGTERM for clean shutdown
-    catch_sigterm();
-
     efreet_cache_update = 0;
 
     /* create homedir */
-    snprintf(file, sizeof(file), "%s/.efreet", efreet_home_dir_get());
+    snprintf(file, sizeof(file), "%s/efreet", efreet_cache_home_get());
     if (!ecore_file_mkpath(file)) goto efreet_error;
 
     /* lock process, so that we only run one copy of this program */
-    snprintf(file, sizeof(file), "%s/.efreet/desktop_data.lock", efreet_home_dir_get());
+    snprintf(file, sizeof(file), "%s/efreet/desktop_data.lock", efreet_cache_home_get());
     lockfd = open(file, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
     if (lockfd < 0) goto efreet_error;
     memset(&fl, 0, sizeof(struct flock));
@@ -299,7 +274,7 @@ main(int argc, char **argv)
 
     /* finish efreet init */
     if (!efreet_init()) goto efreet_error;
-    edd = efreet_desktop_edd_init();
+    edd = efreet_desktop_edd();
     if (!edd) goto edd_error;
 
     /* create cache */
@@ -307,14 +282,14 @@ main(int argc, char **argv)
     tmpfd = mkstemp(file);
     if (tmpfd < 0) goto error;
     close(tmpfd);
-    ef = eet_open(file, EET_FILE_MODE_WRITE);
+    ef = eet_open(file, EET_FILE_MODE_READ_WRITE);
     if (!ef) goto error;
 
     snprintf(util_file, sizeof(util_file), "%s.XXXXXX", efreet_desktop_util_cache_file());
     tmpfd = mkstemp(util_file);
     if (tmpfd < 0) goto error;
     close(tmpfd);
-    util_ef = eet_open(util_file, EET_FILE_MODE_WRITE);
+    util_ef = eet_open(util_file, EET_FILE_MODE_READ_WRITE);
     if (!util_ef) goto error;
 
     file_ids = eina_hash_string_superfast_new(NULL);
@@ -404,14 +379,14 @@ main(int argc, char **argv)
     }
 
     /* cleanup */
+    version.major = EFREET_DESKTOP_UTILS_CACHE_MAJOR;
+    version.minor = EFREET_DESKTOP_UTILS_CACHE_MINOR;
+    eet_data_write(util_ef, efreet_version_edd(), EFREET_CACHE_VERSION, &version, 1);
+    version.major = EFREET_DESKTOP_CACHE_MAJOR;
+    version.minor = EFREET_DESKTOP_CACHE_MINOR;
+    eet_data_write(ef, efreet_version_edd(), EFREET_CACHE_VERSION, &version, 1);
     eet_close(util_ef);
     eet_close(ef);
-
-    /* Remove signal handler, no need to exit now */
-    act.sa_sigaction = SIG_IGN;
-    act.sa_flags = SA_RESTART | SA_SIGINFO;
-    sigemptyset(&act.sa_mask);
-    sigaction(SIGTERM, &act, NULL);
 
     /* unlink old cache files */
     if (changed)
@@ -435,7 +410,7 @@ main(int argc, char **argv)
     }
 
     /* touch update file */
-    snprintf(file, sizeof(file), "%s/.efreet/desktop_data.update", efreet_home_dir_get());
+    snprintf(file, sizeof(file), "%s/efreet/desktop_data.update", efreet_cache_home_get());
     tmpfd = open(file, O_CREAT | O_WRONLY, S_IRUSR | S_IWUSR);
     if (tmpfd >= 0)
     {

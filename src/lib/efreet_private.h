@@ -115,30 +115,30 @@ extern int _efreet_log_dom_global;
 
 extern Eina_Hash *efreet_desktop_cache;
 
-#ifdef ICON_CACHE
-#define EFREET_CACHE_MAJOR 0
-#define EFREET_CACHE_MINOR 3
+#define EFREET_DESKTOP_CACHE_MAJOR 0
+#define EFREET_DESKTOP_CACHE_MINOR 1
+#define EFREET_DESKTOP_UTILS_CACHE_MAJOR 0
+#define EFREET_DESKTOP_UTILS_CACHE_MINOR 1
 
+#ifdef ICON_CACHE
+#define EFREET_ICON_CACHE_MAJOR 0
+#define EFREET_ICON_CACHE_MINOR 4
+
+typedef struct _Efreet_Cache_Icons Efreet_Cache_Icons;
+typedef struct _Efreet_Cache_Directory Efreet_Cache_Directory;
+typedef struct _Efreet_Cache_Icon Efreet_Cache_Icon;
 typedef struct _Efreet_Cache_Icon_Element Efreet_Cache_Icon_Element;
 typedef struct _Efreet_Cache_Fallback_Icon Efreet_Cache_Fallback_Icon;
-typedef struct _Efreet_Cache_Icon Efreet_Cache_Icon;
-typedef struct _Efreet_Cache_Theme Efreet_Cache_Theme;
-typedef struct _Efreet_Cache_Directory Efreet_Cache_Directory;
 
-struct _Efreet_Cache_Theme
+struct _Efreet_Cache_Icons
 {
-    struct {
-        unsigned char major;
-        unsigned char minor;
-    } version;
-
     Eina_Hash *icons;
-   Eina_Hash *dirs;
+    Eina_Hash *dirs;
 };
 
 struct _Efreet_Cache_Directory
 {
-   long long modified_time;
+    long long modified_time;
 };
 
 struct _Efreet_Cache_Icon
@@ -175,6 +175,13 @@ struct _Efreet_Cache_Fallback_Icon
     unsigned int icons_count;
 };
 #endif
+
+typedef struct _Efreet_Cache_Version Efreet_Cache_Version;
+struct _Efreet_Cache_Version
+{
+    unsigned char major;
+    unsigned char minor;
+};
 
 int efreet_base_init(void);
 void efreet_base_shutdown(void);
@@ -225,12 +232,19 @@ Efreet_Desktop *efreet_cache_desktop_find(const char *file);
 
 #ifdef ICON_CACHE
 EAPI const char *efreet_icon_cache_file(void);
+EAPI const char *efreet_icon_theme_cache_file(void);
 
 EAPI void efreet_cache_icon_free(Efreet_Cache_Icon *icon);
 EAPI void efreet_cache_icon_fallback_free(Efreet_Cache_Fallback_Icon *icon);
 Efreet_Cache_Icon *efreet_cache_icon_find(Efreet_Icon_Theme *theme, const char *icon);
 Efreet_Cache_Fallback_Icon *efreet_cache_icon_fallback_find(const char *icon);
+
+EAPI Efreet_Icon_Theme *efreet_icon_theme_new(void);
+EAPI Efreet_Icon_Theme_Directory *efreet_icon_theme_directory_new(Efreet_Ini *ini,
+                                                                    const char *name);
 #endif
+
+EAPI void efreet_hash_free(Eina_Hash *hash, Eina_Free_Cb free_cb);
 
 #define NON_EXISTING (void *)-1
 
