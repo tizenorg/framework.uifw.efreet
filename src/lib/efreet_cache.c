@@ -45,6 +45,7 @@ static Eet_Data_Descriptor *icon_element_edd = NULL;
 static Eet_Data_Descriptor *icon_edd = NULL;
 
 static Eet_File            *icon_cache = NULL;
+static Eet_File            *icon_theme_cache = NULL;
 
 static const char          *icon_theme_cache_file = NULL;
 
@@ -89,6 +90,9 @@ static void desktop_cache_update_cache_job(void *data);
 static void icon_cache_update_cache_job(void *data);
 #endif
 static void desktop_cache_update_free(void *data, void *ev);
+#ifdef ICON_CACHE
+static void icon_cache_update_free(void *data, void *ev);
+#endif
 
 EAPI int EFREET_EVENT_ICON_CACHE_UPDATE = 0;
 EAPI int EFREET_EVENT_DESKTOP_CACHE_UPDATE = 0;
@@ -146,10 +150,10 @@ efreet_cache_shutdown(void)
     theme_cache = _efreet_cache_free(theme_cache);
     fallback_cache = _efreet_cache_fallback_free(fallback_cache);
 
-    if (theme_name) eina_stringshare_del(theme_name);
-    theme_name = NULL;
+    IF_RELEASE(theme_name);
 
     icon_cache = efreet_cache_close(icon_cache);
+    icon_theme_cache = efreet_cache_close(icon_theme_cache);
 #endif
 
     desktop_cache = efreet_cache_close(desktop_cache);
@@ -410,7 +414,7 @@ efreet_icons_edd(Eina_Bool include_dirs)
     EET_DATA_DESCRIPTOR_ADD_VAR_ARRAY(icon_edd, Efreet_Cache_Icon,
                                       "icons", icons, icon_element_pointer_edd);
 
-    EET_EINA_FILE_DATA_DESCRIPTOR_CLASS_SET(&eddc, Efreet_Cache_Icon);
+    EET_EINA_FILE_DATA_DESCRIPTOR_CLASS_SET(&eddc, Efreet_Cache_Icons);
     icons_edd = eet_data_descriptor_file_new(&eddc);
     if (!icons_edd) return NULL;
 
@@ -496,7 +500,7 @@ efreet_icons_fallback_edd(Eina_Bool include_dirs)
     EET_DATA_DESCRIPTOR_ADD_VAR_ARRAY_STRING(icon_fallback_edd,
                                              Efreet_Cache_Fallback_Icon, "icons", icons);
 
-    EET_EINA_FILE_DATA_DESCRIPTOR_CLASS_SET(&eddc, Efreet_Cache_Icon);
+    EET_EINA_FILE_DATA_DESCRIPTOR_CLASS_SET(&eddc, Efreet_Cache_Icons);
     fallback_edd = eet_data_descriptor_file_new(&eddc);
     if (!fallback_edd) return NULL;
 
@@ -590,9 +594,8 @@ efreet_cache_icon_find(Efreet_Icon_Theme *theme, const char *icon)
     {
         /* FIXME: this is bad if people have pointer to this cache, things will go wrong */
         INFO("theme_name change from `%s` to `%s`", theme_name, theme->name.internal);
-        eina_stringshare_del(theme_name);
+        IF_RELEASE(theme_name);
         theme_cache = _efreet_cache_free(theme_cache);
-        theme_name = NULL;
     }
 
     if (!theme_name)
@@ -627,6 +630,49 @@ efreet_cache_icon_fallback_find(const char *icon)
 
     return eina_hash_find(fallback_cache->icons, icon);
 }
+
+Efreet_Icon_Theme *
+efreet_cache_icon_theme_find(const char *theme)
+{
+    if (!efreet_cache_check(&icon_theme_cache, efreet_icon_theme_cache_file(), EFREET_ICON_CACHE_MAJOR)) return NULL;
+    return eet_data_read(icon_theme_cache, efreet_icon_theme_edd(), theme);
+}
+
+void
+efreet_cache_icon_theme_free(Efreet_Icon_Theme *theme)
+{
+    void *data;
+
+    if (!theme) return;
+
+    eina_list_free(theme->paths);
+    eina_list_free(theme->inherits);
+    EINA_LIST_FREE(theme->directories, data)
+        free(data);
+
+    free(theme);
+}
+
+char **
+efreet_cache_icon_theme_name_list(int *num)
+{
+    char **keys;
+    int i;
+
+    if (!efreet_cache_check(&icon_theme_cache, efreet_icon_theme_cache_file(), EFREET_ICON_CACHE_MAJOR)) return NULL;
+    keys = eet_list(icon_theme_cache, "*", num);
+    for (i = 0; i < *num; i++)
+    {
+        if (!strcmp(keys[i], EFREET_CACHE_VERSION) && (i < (*num + 1)))
+        {
+            memmove(&keys[i], &keys[i + 1], (*num - i - 1) * sizeof(char *));
+            (*num)--;
+            break;
+        }
+    }
+    return keys;
+}
+
 #endif
 
 Efreet_Desktop *
@@ -699,6 +745,7 @@ efreet_cache_check(Eet_File **ef, const char *path, int major)
     Efreet_Cache_Version *version;
 
     if (*ef == NON_EXISTING) return EINA_FALSE;
+    if (*ef) return EINA_TRUE;
     if (!*ef)
         *ef = eet_open(path, EET_FILE_MODE_READ);
     if (!*ef)
@@ -789,14 +836,18 @@ cache_update_cb(void *data __UNUSED__, Ecore_File_Monitor *em __UNUSED__,
 #ifdef ICON_CACHE
     else if (!strcmp(file, "icon_data.update"))
     {
+        ev = NEW(Efreet_Event_Cache_Update, 1);
+        if (!ev) goto error;
+        d = NEW(Efreet_Old_Cache, 1);
+        if (!d) goto error;
+
         if (theme_cache)
         {
             INFO("Destorying theme cache due to cache change.");
             theme_cache = _efreet_cache_free(theme_cache);
         }
 
-        if (theme_name) eina_stringshare_del(theme_name);
-        theme_name = NULL;
+        IF_RELEASE(theme_name);
 
         if (fallback_cache)
         {
@@ -806,9 +857,13 @@ cache_update_cb(void *data __UNUSED__, Ecore_File_Monitor *em __UNUSED__,
 
         icon_cache = efreet_cache_close(icon_cache);
 
-        ev = NEW(Efreet_Event_Cache_Update, 1);
-        if (!ev) return;
-        ecore_event_add(EFREET_EVENT_ICON_CACHE_UPDATE, ev, NULL, NULL);
+        d->hash = efreet_icon_themes;
+        d->ef = icon_theme_cache;
+
+        efreet_icon_themes = eina_hash_string_superfast_new(EINA_FREE_CB(efreet_cache_icon_theme_free));
+        icon_theme_cache = NULL;
+
+        ecore_event_add(EFREET_EVENT_ICON_CACHE_UPDATE, ev, icon_cache_update_free, d);
     }
 #endif
     return;
@@ -942,3 +997,17 @@ desktop_cache_update_free(void *data, void *ev)
     free(ev);
 }
 
+#ifdef ICON_CACHE
+static void
+icon_cache_update_free(void *data, void *ev)
+{
+    Efreet_Old_Cache *d;
+
+    d = data;
+    if (d->hash)
+        eina_hash_free(d->hash);
+    efreet_cache_close(d->ef);
+    free(d);
+    free(ev);
+}
+#endif
