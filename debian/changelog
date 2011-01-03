@@ -1,3 +1,11 @@
+efreet (1.0.0.001+svn.55641slp2+build01) unstable; urgency=low
+
+  * [SVN EFL Migration] efreet in SLP is merged with SVN r55641
+  * Git: 165.213.180.234:slp/pkgs/e/efreet
+  * Tag: efreet_1.0.0.001+svn.55641slp2+build01
+
+ -- Jaehwan Kim <jae.hwan.kim@samsung.com>  Mon, 03 Jan 2011 21:24:33 +0900
+
 efreet (1.0.0.001+svn.55523slp2+build01) unstable; urgency=low
 
   * [SVN EFL Migration] efreet in SLP is merged with SVN r55523
