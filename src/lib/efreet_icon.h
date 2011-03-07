@@ -63,14 +63,9 @@ struct Efreet_Icon_Theme
     /* An icon theme can have multiple directories that store it's icons. We
      * need to be able to find a search each one. */
 
-    Eina_List *paths;          /**< The paths */
-    Eina_List *inherits;       /**< Icon themes we inherit from */
-    Eina_List *directories;    /**< List of subdirectories for this theme */
-
-    double last_cache_check;    /**< Last time the cache was checked */
-
-    unsigned char hidden:1;     /**< Should this theme be hidden from users */
-    unsigned char valid:1;      /**< Have we seen an index for this theme */
+    Eina_List *paths;           /**< The paths */
+    Eina_List *inherits;        /**< Icon themes we inherit from */
+    Eina_List *directories;     /**< List of subdirectories for this theme */
 };
 
 /**
@@ -130,12 +125,12 @@ struct Efreet_Icon
 };
 
 /**
- * Efreet_Point
+ * Efreet_Icon_Point
  */
 typedef struct Efreet_Icon_Point Efreet_Icon_Point;
 
 /**
- * Efreet_Point
+ * Efreet_Icon_Point
  * @brief Stores an x, y point.
  */
 struct Efreet_Icon_Point
@@ -149,6 +144,7 @@ EAPI const char        *efreet_icon_deprecated_user_dir_get(void);
 EAPI void               efreet_icon_extension_add(const char *ext);
 
 EAPI Eina_List        **efreet_icon_extra_list_get(void);
+EAPI Eina_List         *efreet_icon_extensions_list_get(void);
 EAPI Eina_List         *efreet_icon_theme_list_get(void);
 EAPI Efreet_Icon_Theme *efreet_icon_theme_find(const char *theme_name);
 EAPI Efreet_Icon       *efreet_icon_find(const char *theme_name,
