@@ -13,10 +13,6 @@
 
 #include <Ecore_File.h>
 
-/* define macros and variable for using the eina logging system  */
-#define EFREET_MODULE_LOG_DOM _efreet_trash_log_dom
-static int _efreet_trash_log_dom = -1;
-
 #include "Efreet.h"
 #include "Efreet_Trash.h"
 #include "efreet_private.h"
@@ -27,6 +23,14 @@ static const char *efreet_trash_dir = NULL;
 #ifdef _WIN32
 # define getuid() GetCurrentProcessId()
 #endif
+
+/* define macros and variable for using the eina logging system  */
+
+#ifdef EFREET_MODULE_LOG_DOM 
+#undef EFREET_MODULE_LOG_DOM
+#endif
+#define EFREET_MODULE_LOG_DOM _efreet_trash_log_dom
+static int _efreet_trash_log_dom = -1;
 
 /**
  * @return Returns 1 on success or 0 on failure
@@ -45,7 +49,7 @@ efreet_trash_init(void)
       ("efreet_trash", EFREET_DEFAULT_LOG_COLOR);
     if (_efreet_trash_log_dom < 0)
     {
-        ERR("Efreet: Could not create a log domain for efreet_trash");
+        ERROR("Efreet: Could not create a log domain for efreet_trash");
         eina_shutdown();
         return --_efreet_trash_init_count;
     }
@@ -64,7 +68,6 @@ efreet_trash_shutdown(void)
 
     IF_RELEASE(efreet_trash_dir);
     eina_log_domain_unregister(_efreet_trash_log_dom);
-    _efreet_trash_log_dom = -1;
     eina_shutdown();
 
     return _efreet_trash_init_count;
@@ -169,8 +172,8 @@ efreet_trash_dir_get(const char *file)
 }
 
 /**
- * @param uri The local uri to move in the trash
- * @param force_delete If you set this to 1 than files on different filesystems
+ * @param uri: The local uri to move in the trash
+ * @param force_delete: If you set this to 1 than files on different filesystems
  * will be deleted permanently
  * @return Return 1 on success, 0 on failure or -1 in case the uri is not on the
  * same filesystem and force_delete is not set.
@@ -241,7 +244,7 @@ efreet_trash_delete_uri(Efreet_Uri *uri, int force_delete)
 
     if ((f = fopen(dest, "w")))
     {
-        fputs("[Trash Info]\n", f);
+        fputs("[Trash Info]\n", f); //TODO is '\n' right?? (or \r\c??)
 
         fputs("Path=", f);
         escaped = efreet_uri_encode(uri);

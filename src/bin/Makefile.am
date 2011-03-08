@@ -11,8 +11,12 @@ AM_CPPFLAGS = \
 
 internal_bindir=$(libdir)/efreet
 internal_bin_PROGRAMS = \
-efreet_desktop_cache_create \
+efreet_desktop_cache_create
+
+if ICON_CACHE
+internal_bin_PROGRAMS += \
 efreet_icon_cache_create
+endif
 
 efreet_desktop_cache_create_LDADD = \
 $(top_builddir)/src/lib/libefreet.la \
@@ -21,9 +25,13 @@ $(top_builddir)/src/lib/libefreet.la \
 efreet_desktop_cache_create_SOURCES = \
 efreet_desktop_cache_create.c
 
+if ICON_CACHE
+
 efreet_icon_cache_create_LDADD = \
 $(top_builddir)/src/lib/libefreet.la \
 @EFREET_LIBS@
 
 efreet_icon_cache_create_SOURCES = \
 efreet_icon_cache_create.c
+
+endif

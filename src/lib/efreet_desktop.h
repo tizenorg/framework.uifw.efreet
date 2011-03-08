@@ -91,6 +91,7 @@ struct _Efreet_Desktop
     unsigned char hidden;            /**< User delete the item */
     unsigned char terminal;          /**< Does the program run in a terminal */
     unsigned char startup_notify;    /**< The starup notify settings of the app */
+    unsigned char cached:1;          /**< The desktop file is cached by Efreet */
     unsigned char eet:1;             /**< The desktop file is in eet cache */
 
     Eina_Hash *x; /**< Keep track of all user extensions, keys that begin with X- */
@@ -103,10 +104,6 @@ EAPI Efreet_Desktop   *efreet_desktop_empty_new(const char *file);
 EAPI Efreet_Desktop   *efreet_desktop_new(const char *file);
 EAPI Efreet_Desktop   *efreet_desktop_uncached_new(const char *file);
 EAPI void              efreet_desktop_free(Efreet_Desktop *desktop);
-/**
- * @def efreet_desktop_unref(desktop)
- * Alias for efreet_desktop_free(desktop)
- */
 #define efreet_desktop_unref(desktop) efreet_desktop_free((desktop))
 
 EAPI int               efreet_desktop_save(Efreet_Desktop *desktop);

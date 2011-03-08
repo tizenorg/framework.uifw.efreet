@@ -13,10 +13,6 @@
 
 #include <Ecore_File.h>
 
-/* define macros and variable for using the eina logging system  */
-#define EFREET_MODULE_LOG_DOM _efreet_xml_log_dom
-static int _efreet_xml_log_dom = -1;
-
 #include "Efreet.h"
 #include "efreet_private.h"
 #include "efreet_xml.h"
@@ -39,7 +35,15 @@ static void efreet_xml_comment_skip(char **data, int *size);
 
 static int error = 0;
 
+/* define macros and variable for using the eina logging system  */
+
+#ifdef EFREET_MODULE_LOG_DOM
+#undef EFREET_MODULE_LOG_DOM
+#endif
+#define EFREET_MODULE_LOG_DOM _efreet_xml_log_dom
+
 static int _efreet_xml_init_count = 0;
+static int _efreet_xml_log_dom = -1;
 
 /**
  * @internal
@@ -56,7 +60,7 @@ efreet_xml_init(void)
     if (_efreet_xml_log_dom < 0)
     {
         _efreet_xml_init_count--;
-        ERR("Efreet: Could not create a log domain for efreet_xml.");
+        ERROR("Efreet: Could not create a log domain for efreet_xml.");
         return _efreet_xml_init_count;
     }
     return _efreet_xml_init_count;
@@ -73,12 +77,11 @@ efreet_xml_shutdown(void)
     _efreet_xml_init_count--;
     if (_efreet_xml_init_count > 0) return;
     eina_log_domain_unregister(_efreet_xml_log_dom);
-    _efreet_xml_log_dom = -1;
 }
 
 /**
  * @internal
- * @param file The file to parse
+ * @param file: The file to parse
  * @return Returns an Efreet_Xml structure for the given file @a file or
  * NULL on failure
  * @brief Parses the given file into an Efreet_Xml structure.
@@ -120,7 +123,7 @@ efreet_error:
 
 /**
  * @internal
- * @param xml The Efree_Xml to free
+ * @param xml: The Efree_Xml to free
  * @return Returns no value
  * @brief Frees up the given Efreet_Xml structure
  */
@@ -150,8 +153,8 @@ efreet_xml_del(Efreet_Xml *xml)
 }
 
 /**
- * @param xml The xml struct to work with
- * @param key The attribute key to look for
+ * @param xml: The xml struct to work with
+ * @param key: The attribute key to look for
  * @return Returns the value for the given key, or NULL if none found
  * @brief Retrieves the value for the given attribute key
  */

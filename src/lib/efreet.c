@@ -24,24 +24,15 @@ void *alloca (size_t);
 #include <stdio.h>
 #include <string.h>
 #include <limits.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <sys/stat.h>
 
 #include <Eet.h>
 #include <Ecore.h>
 #include <Ecore_File.h>
 
-/* define macros and variable for using the eina logging system  */
-#define EFREET_MODULE_LOG_DOM /* no logging in this file */
-
 #include "Efreet.h"
 #include "efreet_private.h"
 #include "efreet_xml.h"
 
-/*
- * Needs EAPI because of helper binaries
- */
 EAPI int efreet_cache_update = 1;
 
 static int _efreet_init_count = 0;
@@ -49,11 +40,9 @@ static int efreet_parsed_locale = 0;
 static const char *efreet_lang = NULL;
 static const char *efreet_lang_country = NULL;
 static const char *efreet_lang_modifier = NULL;
+int _efreet_log_domain_global = -1;
 static void efreet_parse_locale(void);
 static int efreet_parse_locale_setting(const char *env);
-
-static uid_t ruid;
-static uid_t rgid;
 
 /**
  * @return Returns > 0 if the initialization was successful, 0 otherwise
@@ -62,23 +51,8 @@ static uid_t rgid;
 EAPI int
 efreet_init(void)
 {
-    char *tmp;
-
     if (++_efreet_init_count != 1)
         return _efreet_init_count;
-
-    /* Find users real uid and gid */
-    tmp = getenv("SUDO_UID");
-    if (tmp)
-        ruid = strtoul(tmp, NULL, 10);
-    else
-        ruid = getuid();
-
-    tmp = getenv("SUDO_GID");
-    if (tmp)
-        rgid = strtoul(tmp, NULL, 10);
-    else
-        rgid = getgid();
 
     if (!eina_init())
         return --_efreet_init_count;
@@ -88,9 +62,15 @@ efreet_init(void)
         goto shutdown_eet;
     if (!ecore_file_init())
         goto shutdown_ecore;
+    _efreet_log_domain_global = eina_log_domain_register("efreet", EFREET_DEFAULT_LOG_COLOR);
+    if (_efreet_log_domain_global < 0)
+    {
+       EINA_LOG_ERR("Efreet could create a general log domain.");
+        goto shutdown_ecore_file;
+    }
 
     if (!efreet_base_init())
-        goto shutdown_ecore_file;
+        goto unregister_log_domain;
 
     if (!efreet_cache_init())
         goto shutdown_efreet_base;
@@ -129,6 +109,8 @@ shutdown_efreet_cache:
     efreet_cache_shutdown();
 shutdown_efreet_base:
     efreet_base_shutdown();
+unregister_log_domain:
+    eina_log_domain_unregister(_efreet_log_domain_global);
 shutdown_ecore_file:
     ecore_file_shutdown();
 shutdown_ecore:
@@ -161,6 +143,7 @@ efreet_shutdown(void)
     efreet_xml_shutdown();
     efreet_cache_shutdown();
     efreet_base_shutdown();
+    eina_log_domain_unregister(_efreet_log_domain_global);
 
     IF_RELEASE(efreet_lang);
     IF_RELEASE(efreet_lang_country);
@@ -240,7 +223,7 @@ efreet_parse_locale(void)
 
 /**
  * @internal
- * @param env The environment variable to grab
+ * @param env: The environment variable to grab
  * @return Returns 1 if we parsed something of @a env, 0 otherwise
  * @brief Tries to parse the lang settings out of the given environment
  * variable
@@ -292,9 +275,9 @@ efreet_parse_locale_setting(const char *env)
 
 /**
  * @internal
- * @param buffer The destination buffer
- * @param size The destination buffer size
- * @param strs The strings to concatenate together
+ * @param buffer: The destination buffer
+ * @param size: The destination buffer size
+ * @param strs: The strings to concatenate together
  * @return Returns the size of the string in @a buffer
  * @brief Concatenates the strings in @a strs into the given @a buffer not
  * exceeding the given @a size.
@@ -309,27 +292,4 @@ efreet_array_cat(char *buffer, size_t size, const char *strs[])
         n += eina_strlcpy(buffer + n, strs[i], size - n);
     }
     return n;
-}
-
-EAPI void
-efreet_fsetowner(int fd)
-{
-    struct stat st;
-
-    if (fd < 0) return;
-    if (fstat(fd, &st) < 0) return;
-    if (st.st_uid == ruid) return;
-
-    fchown(fd, ruid, rgid);
-}
-
-EAPI void
-efreet_setowner(const char *path)
-{
-    int fd;
-
-    fd = open(path, O_RDONLY);
-    if (fd < 0) return;
-    efreet_fsetowner(fd);
-    close(fd);
 }

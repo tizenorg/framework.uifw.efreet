@@ -2,11 +2,11 @@
 ##--##--##--##--##--##--##--##--##--##--##--##--##--##--##--##--##
 m4_define([v_maj], [1])
 m4_define([v_min], [0])
-m4_define([v_mic], [999])
+m4_define([v_mic], [0])
 m4_define([v_rev], m4_esyscmd([(svnversion "${SVN_REPO_PATH:-.}" | grep -v export || echo 0) | awk -F : '{printf("%s\n", $1);}' | tr -d ' :MSP\n']))
 m4_if(v_rev, [0], [m4_define([v_rev], m4_esyscmd([git log 2> /dev/null | (grep -m1 git-svn-id || echo 0) | sed -e 's/.*@\([0-9]*\).*/\1/' | tr -d '\n']))])
 ##--   When released, remove the dnl on the below line
-dnl m4_undefine([v_rev])
+m4_undefine([v_rev])
 ##--   When doing snapshots - change soname. remove dnl on below line
 dnl m4_define([relname], [ver-pre-svn-07])
 dnl m4_define([v_rel], [-release relname])
@@ -18,7 +18,7 @@ m4_define([lt_age], v_min)
 ##--##--##--##--##--##--##--##--##--##--##--##--##--##--##--##--##
 ##--##--##--##--##--##--##--##--##--##--##--##--##--##--##--##--##
 
-AC_INIT([efreet], [v_ver], [enlightenment-devel@lists.sourceforge.net])
+AC_INIT([efreet], [v_ver.beta3], [enlightenment-devel@lists.sourceforge.net])
 AC_PREREQ([2.52])
 AC_CONFIG_SRCDIR([configure.ac])
 AC_CONFIG_MACRO_DIR([m4])
@@ -94,6 +94,22 @@ AC_ARG_ENABLE([sloppy-spec],
 if test "x${enable_sloppy_spec}" = "xyes" ; then
    AC_DEFINE([SLOPPY_SPEC], [1], [Sloppy Spec Compliance])
 fi
+
+AC_ARG_ENABLE([icon-cache],
+   [AC_HELP_STRING([--enable-icon-cache], [Enable icon cache compliance @<:@default=disabled@:>@])],
+   [
+    if test "x${enableval}" = "xyes" ; then
+       enable_icon_cache="yes"
+    else
+       enable_icon_cache="no"
+    fi
+   ],
+   [enable_icon_cache="no"])
+
+if test "x${enable_icon_cache}" = "xyes" ; then
+   AC_DEFINE([ICON_CACHE], [1], [Icon Cache])
+fi
+AM_CONDITIONAL(ICON_CACHE, test "x$enable_icon_cache" = "xyes")
 
 
 #AC_ARG_ENABLE(hidden-visibility,
@@ -201,7 +217,7 @@ AC_SUBST(lt_enable_auto_import)
 ### Checks for library functions
 AC_ISC_POSIX
 AC_FUNC_ALLOCA
-AC_CHECK_FUNCS(strlcpy clearenv)
+AC_CHECK_FUNCS(strlcpy)
 
 ### Unit tests, coverage
 
@@ -249,6 +265,8 @@ echo
 echo "  Specification compliance:"
 echo "    Strict.............: ${enable_strict_spec}"
 echo "    Sloppy.............: ${enable_sloppy_spec}"
+echo
+echo "  Icon cache...........: ${enable_icon_cache}"
 echo
 echo "  Tests................: ${enable_tests}"
 echo "  Coverage.............: ${enable_coverage}"
