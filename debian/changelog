@@ -1,3 +1,11 @@
+efreet (1.0.0.001+svn.57435slp2+build03) unstable; urgency=low
+
+  * Package Upload : Rollback
+  * Git: 165.213.180.234:/slp/pkgs/e/efreet
+  * Tag: efreet_1.0.0.001+svn.57435slp2+build03
+
+ -- WooHyun Jung <wh0705.jung@samsung.com>  Tue, 08 Mar 2011 12:52:20 +0900
+
 efreet (1.0.0.001+svn.57435slp2+build02) unstable; urgency=low
 
   * Package upload : Rollback
