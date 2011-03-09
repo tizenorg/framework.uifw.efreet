@@ -1,3 +1,11 @@
+efreet (1.0.0.001+svn.57435slp2+build04) unstable; urgency=low
+
+  * [SVN EFL Migration] efreet in SLP is merged with SVN r57435
+  * Git: 165.213.180.234:slp/pkgs/e/efreet slp-scm.sec.samsung.net:29421/slp/pkgs/e/efreet
+  * Tag: efreet_1.0.0.001+svn.57435slp2+build04
+
+ -- Myungjae Lee <mjae.lee@samsung.com>  Wed, 09 Mar 2011 11:15:25 +0900
+
 efreet (1.0.0.001+svn.57435slp2+build03) unstable; urgency=low
 
   * Package Upload : Rollback
