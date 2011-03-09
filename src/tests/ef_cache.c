@@ -10,11 +10,14 @@ EAPI Eina_List *efreet_util_desktop_generic_name_glob_list(const char *glob);
 EAPI Eina_List *efreet_util_desktop_comment_glob_list(const char *glob);
 #endif
 
+static Eina_Bool icon_cb = EINA_FALSE;
+static Eina_Bool desktop_cb = EINA_FALSE;
+
 static void
 check(void)
 {
     Eina_List *list;
-    Efreet_Desktop *desktop;
+    Efreet_Desktop *desktop, *desktop2;
     double start;
     const char *id;
 
@@ -129,15 +132,68 @@ check(void)
     printf("time: %.6f\n", (ecore_time_get() - start));
 
     desktop = efreet_desktop_get("/opt/google/chrome/google-chrome.desktop");
-    if (desktop) efreet_desktop_free(desktop);
+    if (desktop)
+        printf("%s: %d %d\n", desktop->orig_path, desktop->ref, desktop->eet);
+    desktop2 = efreet_desktop_new("/opt/google/chrome/google-chrome.desktop");
+    if (desktop2)
+    {
+        printf("%s: %d %d\n", desktop2->orig_path, desktop2->ref, desktop2->eet);
+        efreet_desktop_free(desktop2);
+    }
+    if (desktop)
+        efreet_desktop_free(desktop);
+
+    desktop = efreet_desktop_get("/usr/share/applications/firefox.desktop");
+    if (desktop)
+        printf("%s: %d %d\n", desktop->orig_path, desktop->ref, desktop->eet);
+    desktop2 = efreet_desktop_new("/usr/share/applications/firefox.desktop");
+    if (desktop2)
+    {
+        printf("%s: %d %d\n", desktop2->orig_path, desktop2->ref, desktop2->eet);
+        efreet_desktop_free(desktop2);
+    }
+    if (desktop)
+        efreet_desktop_free(desktop);
+    fflush(stdout);
+}
+
+static Eina_Bool
+icon_handler_cb(void *data __UNUSED__, int event_type __UNUSED__, void *event __UNUSED__)
+{
+    icon_cb = EINA_TRUE;
+    if (icon_cb && desktop_cb)
+    {
+        check();
+        ecore_main_loop_quit();
+    }
+    return ECORE_CALLBACK_PASS_ON;
+}
+
+static Eina_Bool
+desktop_handler_cb(void *data __UNUSED__, int event_type __UNUSED__, void *event __UNUSED__)
+{
+    desktop_cb = EINA_TRUE;
+    if (icon_cb && desktop_cb)
+    {
+        check();
+        ecore_main_loop_quit();
+    }
+    return ECORE_CALLBACK_PASS_ON;
 }
 
 int
 main(int argc __UNUSED__, char **argv __UNUSED__)
 {
+    Ecore_Event_Handler *icon_handler;
+    Ecore_Event_Handler *desktop_handler;
+
     if (!efreet_init()) return 1;
+    icon_handler = ecore_event_handler_add(EFREET_EVENT_ICON_CACHE_UPDATE, icon_handler_cb, NULL);
+    desktop_handler = ecore_event_handler_add(EFREET_EVENT_DESKTOP_CACHE_UPDATE, desktop_handler_cb, NULL);
     check();
     ecore_main_loop_begin();
+    ecore_event_handler_del(icon_handler);
+    ecore_event_handler_del(desktop_handler);
     efreet_shutdown();
     return 0;
 }

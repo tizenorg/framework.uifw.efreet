@@ -25,6 +25,10 @@ void *alloca (size_t);
 #include <limits.h>
 #include <unistd.h>
 
+/* define macros and variable for using the eina logging system  */
+#define EFREET_MODULE_LOG_DOM _efreet_base_log_dom
+static int _efreet_base_log_dom = -1;
+
 #include "Efreet.h"
 #include "efreet_private.h"
 
@@ -45,15 +49,6 @@ static Eina_List  *xdg_data_dirs = NULL;
 static Eina_List  *xdg_config_dirs = NULL;
 static const char *hostname = NULL;
 
-/* define macros and variable for using the eina logging system  */
-#ifdef EFREET_MODULE_LOG_DOM 
-#undef EFREET_MODULE_LOG_DOM
-#endif
-
-#define EFREET_MODULE_LOG_DOM _efreet_base_log_dom
-static int _efreet_base_log_dom = -1;
-
-
 static const char *efreet_dir_get(const char *key, const char *fallback);
 static Eina_List  *efreet_dirs_get(const char *key,
                                         const char *fallback);
@@ -70,7 +65,7 @@ efreet_base_init(void)
       ("efreet_base", EFREET_DEFAULT_LOG_COLOR);
     if (_efreet_base_log_dom < 0)
     {
-        ERROR("Efreet: Could not create a log domain for efreet_base.\n");
+        ERR("Efreet: Could not create a log domain for efreet_base.\n");
         return 0;
     }
     return 1;
@@ -95,16 +90,15 @@ efreet_base_shutdown(void)
     IF_RELEASE(hostname);
 
     eina_log_domain_unregister(_efreet_base_log_dom);
+    _efreet_base_log_dom = -1;
 }
 
 /**
  * @internal
  * @return Returns the users home directory
  * @brief Gets the users home directory and returns it.
- *
- * Needs EAPI because of helper binaries
  */
-EAPI const char *
+const char *
 efreet_home_dir_get(void)
 {
     if (efreet_home_dir) return efreet_home_dir;
@@ -222,8 +216,8 @@ efreet_hostname_get(void)
 
 /**
  * @internal
- * @param key: The environemnt key to lookup
- * @param fallback: The fallback value to use
+ * @param key The environemnt key to lookup
+ * @param fallback The fallback value to use
  * @return Returns the directory related to the given key or the fallback
  * @brief This trys to determine the correct directory name given the
  * environment key @a key and fallbacks @a fallback.
@@ -256,8 +250,8 @@ efreet_dir_get(const char *key, const char *fallback)
 
 /**
  * @internal
- * @param key: The environment key to lookup
- * @param fallback: The fallback value to use
+ * @param key The environment key to lookup
+ * @param fallback The fallback value to use
  * @return Returns a list of directories specified by the given key @a key
  * or from the list of fallbacks in @a fallback.
  * @brief Creates a list of directories as given in the environment key @a
