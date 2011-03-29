@@ -1,3 +1,11 @@
+efreet (1.0.0.001+svn.58043slp2+build01) unstable; urgency=low
+
+  * [SVN EFL Migration] efreet in SLP is merged with SVN r58043
+  * Git: 165.213.180.234:slp/pkgs/e/efreet
+  * Tag: efreet_1.0.0.001+svn.58043slp2+build01
+
+ -- Shinwoo Kim <cinoo.kim@samsung.com>  Tue, 29 Mar 2011 18:56:00 +0900
+
 efreet (1.0.0.001+svn.57435slp2+build06) unstable; urgency=low
 
   * Change libefreet.install file to install efreet_desktop_cache_create file
