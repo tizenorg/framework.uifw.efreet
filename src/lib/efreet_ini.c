@@ -56,7 +56,7 @@ efreet_ini_init(void)
       ("efreet_init", EFREET_DEFAULT_LOG_COLOR);
     if (_efreet_ini_log_dom < 0)
     {
-        EINA_LOG_ERR("Efreet: Could not create a log domain for efreet_init");
+        ERR("Efreet: Could not create a log domain for efreet_init");
         return 0;
     }
     return 1;
@@ -196,7 +196,7 @@ efreet_ini_parse(const char *file)
             {
                 /* invalid file - skip line? or refuse to parse file? */
                 /* just printf for now till we figure out what to do */
-//                ERR("Invalid file (%s) (missing ] on group name)", file);
+//                printf("Invalid file (%s) (missing ] on group name)\n", file);
             }
             goto next_line;
         }

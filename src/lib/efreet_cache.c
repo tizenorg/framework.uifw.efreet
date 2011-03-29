@@ -1040,8 +1040,8 @@ cache_update_cb(void *data __UNUSED__, Ecore_File_Monitor *em __UNUSED__,
     Efreet_Old_Cache *d = NULL;
     Eina_List *l = NULL;
 
-    if (event != ECORE_FILE_EVENT_CLOSED)
-        return;
+    if (event != ECORE_FILE_EVENT_CREATED_FILE &&
+        event != ECORE_FILE_EVENT_MODIFIED) return;
 
     file = ecore_file_file_get(path);
     if (!file) return;
@@ -1262,8 +1262,8 @@ desktop_cache_update_free(void *data, void *ev)
         EINA_ITERATOR_FOREACH(it, tuple)
         {
             if (tuple->data == NON_EXISTING) continue;
-            ERR("%d:%s still in cache on cache close!",
-                ((Efreet_Desktop *)tuple->data)->ref, (char *)tuple->key);
+            printf("Efreet: %d:%s still in cache on cache close!\n",
+                   ((Efreet_Desktop *)tuple->data)->ref, (char *)tuple->key);
             dangling++;
         }
         eina_iterator_free(it);
@@ -1281,11 +1281,11 @@ desktop_cache_update_free(void *data, void *ev)
     else
     {
         /* TODO: Keep in old_desktop_caches, as we might close ref later */
-        ERR("There are still %i desktop files with old\n"
+        printf("Efreet: ERROR. There are still %i desktop files with old\n"
                "dangling references to desktop files. This application\n"
                "has not handled the EFREET_EVENT_DESKTOP_CACHE_UPDATE\n"
                "fully and released its references. Please fix the application\n"
-               "so it does this.",
+               "so it does this.\n",
                dangling);
     }
     old_desktop_caches = eina_list_remove(old_desktop_caches, d);
