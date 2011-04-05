@@ -114,7 +114,7 @@ efreet_desktop_init(void)
       ("efreet_desktop", EFREET_DEFAULT_LOG_COLOR);
     if (_efreet_desktop_log_dom < 0)
     {
-        ERR("Efreet: Could not create a log domain for efreet_desktop");
+        EINA_LOG_ERR("Efreet: Could not create a log domain for efreet_desktop");
         return 0;
     }
 
@@ -1204,6 +1204,7 @@ efreet_desktop_changes_cb(void *data __UNUSED__, Ecore_File_Monitor *em __UNUSED
         case ECORE_FILE_EVENT_CREATED_FILE:
         case ECORE_FILE_EVENT_DELETED_FILE:
         case ECORE_FILE_EVENT_MODIFIED:
+        case ECORE_FILE_EVENT_CLOSED:
             ext = strrchr(path, '.');
             if (ext && (!strcmp(ext, ".desktop") || !strcmp(ext, ".directory")))
                 efreet_cache_desktop_update();
