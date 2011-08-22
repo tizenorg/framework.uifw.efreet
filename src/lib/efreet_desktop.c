@@ -20,11 +20,6 @@ extern "C"
 void *alloca (size_t);
 #endif
 
-#include <unistd.h>
-#include <sys/stat.h>
-#include <sys/mman.h>
-#include <fcntl.h>
-
 #ifdef HAVE_EVIL
 # include <Evil.h>
 #endif
@@ -70,7 +65,6 @@ struct Efreet_Desktop_Type_Info
     Efreet_Desktop_Type_Free_Cb free_func;
 };
 
-static int efreet_desktop_cache_check(Efreet_Desktop *desktop);
 static int efreet_desktop_read(Efreet_Desktop *desktop);
 static Efreet_Desktop_Type_Info *efreet_desktop_type_parse(const char *type_str);
 static void efreet_desktop_type_info_free(Efreet_Desktop_Type_Info *info);
@@ -212,15 +206,12 @@ efreet_desktop_new(const char *file)
     if (desktop)
     {
         desktop->ref++;
-        if (efreet_desktop_cache_check(desktop))
+        if (!efreet_desktop_environment_check(desktop))
         {
-            if (!efreet_desktop_environment_check(desktop))
-            {
-                efreet_desktop_free(desktop);
-                return NULL;
-            }
-            return desktop;
+            efreet_desktop_free(desktop);
+            return NULL;
         }
+        return desktop;
         efreet_desktop_free(desktop);
     }
     return efreet_desktop_uncached_new(file);
@@ -570,24 +561,6 @@ efreet_desktop_string_list_join(Eina_List *list)
         pos += 1;
     }
     return string;
-}
-
-/**
- * @internal
- * @param desktop The desktop to check
- * @return Returns 1 if the cache is still valid, 0 otherwise
- * @brief This will check if the desktop cache is still valid.
- */
-static int
-efreet_desktop_cache_check(Efreet_Desktop *desktop)
-{
-    if (!desktop) return 0;
-
-    /* have we modified this file since we last read it in? */
-    if (ecore_file_mod_time(desktop->orig_path) != desktop->load_time)
-        return 0;
-
-    return 1;
 }
 
 /**
@@ -1011,6 +984,7 @@ efreet_desktop_changes_listen(void)
 
         for (i = 0; i < arr->array_count; i++)
             efreet_desktop_changes_monitor_add(arr->array[i]);
+        efreet_cache_array_string_free(arr);
     }
 }
 

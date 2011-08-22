@@ -1,22 +1,18 @@
 #ifdef HAVE_CONFIG_H
 # include <config.h>
 #endif
-#include <limits.h>
-#include <stdio.h>
-#include <dirent.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <sys/mman.h>
 #include <fcntl.h>
 #include <unistd.h>
-#include <errno.h>
 
 #include <Eina.h>
 #include <Eet.h>
 #include <Ecore.h>
 #include <Ecore_File.h>
 
-#define EFREET_MODULE_LOG_DOM /* no logging in this file */
+#define EFREET_MODULE_LOG_DOM _efreet_desktop_cache_log_dom
+static int _efreet_desktop_cache_log_dom = -1;
 
 #include "Efreet.h"
 #include "efreet_private.h"
@@ -39,53 +35,33 @@ static Eina_Hash *generic_name = NULL;
 static Eina_Hash *comment = NULL;
 static Eina_Hash *exec = NULL;
 
-static int verbose = 0;
-
-static int
-strcmplen(const void *data1, const void *data2)
-{
-    return strncmp(data1, data2, eina_stringshare_strlen(data1));
-}
-
 static int
 cache_add(const char *path, const char *file_id, int priority __UNUSED__, int *changed)
 {
     Efreet_Desktop *desk;
     char *ext;
 
-    if (verbose)
-    {
-        printf("FOUND: %s\n", path);
-        if (file_id) printf(" (id): %s\n", file_id);
-    }
+    INF("FOUND: %s", path);
+    if (file_id) INF(" (id): %s", file_id);
     ext = strrchr(path, '.');
     if (!ext || (strcmp(ext, ".desktop") && strcmp(ext, ".directory"))) return 1;
     desk = efreet_desktop_new(path);
-    if (verbose)
-    {
-        if (desk) printf("  OK\n");
-        else      printf("  FAIL\n");
-    }
+    if (desk) INF("  OK");
+    else      INF("  FAIL");
     if (!desk) return 1;
     if (!desk->eet)
     {
         /* This file isn't in cache */
         *changed = 1;
-        if (verbose)
-        {
-            printf("  NEW\n");
-        }
+        INF("  NEW");
     }
     else if (ecore_file_mod_time(desk->orig_path) != desk->load_time)
     {
         efreet_desktop_free(desk);
         *changed = 1;
         desk = efreet_desktop_uncached_new(path);
-        if (verbose)
-        {
-            if (desk) printf("  CHANGED\n");
-            else      printf("  NO UNCACHED\n");
-        }
+        if (desk) INF("  CHANGED");
+        else      INF("  NO UNCACHED");
     }
     if (!desk) return 1;
     if (!eina_hash_find(paths, desk->orig_path))
@@ -205,7 +181,7 @@ cache_lock_file(void)
     fl.l_whence = SEEK_SET;
     if (fcntl(lockfd, F_SETLK, &fl) < 0)
     {
-        if (verbose) printf("LOCKED! You may want to delete %s if this persists\n", file);
+        INF("LOCKED! You may want to delete %s if this persists", file);
         close(lockfd);
         return -1;
     }
@@ -238,10 +214,18 @@ main(int argc, char **argv)
     char util_file[PATH_MAX] = { '\0' };
 
     if (!eina_init()) goto eina_error;
+    _efreet_desktop_cache_log_dom =
+        eina_log_domain_register("efreet_desktop_cache", EFREET_DEFAULT_LOG_COLOR);
+    if (_efreet_desktop_cache_log_dom < 0)
+    {
+        EINA_LOG_ERR("Efreet: Could not create a log domain for efreet_desktop_cache.");
+        return -1;
+    }
 
     for (i = 1; i < argc; i++)
     {
-        if      (!strcmp(argv[i], "-v")) verbose = 1;
+        if (!strcmp(argv[i], "-v"))
+            eina_log_domain_level_set("efreet_desktop_cache", EINA_LOG_LEVEL_DBG);
         else if ((!strcmp(argv[i], "-h")) ||
                  (!strcmp(argv[i], "-help")) ||
                  (!strcmp(argv[i], "--h")) ||
@@ -345,7 +329,7 @@ main(int argc, char **argv)
 
         for (j = 0; j < user_dirs->array_count; j++)
         {
-            if (eina_list_search_unsorted_list(scanned, strcmplen, user_dirs->array[j]))
+            if (eina_list_search_unsorted_list(scanned, EINA_COMPARE_CB(strcmp), user_dirs->array[j]))
                 continue;
             if (!ecore_file_is_dir(user_dirs->array[j])) continue;
             if (!cache_scan(user_dirs->array[j], NULL, priority, 0, &changed)) goto error;
@@ -362,7 +346,7 @@ main(int argc, char **argv)
 
         EINA_LIST_FOREACH(extra_dirs, l, path)
         {
-            if (eina_list_search_unsorted_list(scanned, strcmplen, path))
+            if (eina_list_search_unsorted_list(scanned, EINA_COMPARE_CB(strcmp), path))
                 continue;
             if (!ecore_file_is_dir(path)) continue;
 
@@ -502,6 +486,7 @@ main(int argc, char **argv)
     efreet_shutdown();
     ecore_shutdown();
     eet_shutdown();
+    eina_log_domain_unregister(_efreet_desktop_cache_log_dom);
     eina_shutdown();
     close(lockfd);
     return 0;
@@ -519,6 +504,7 @@ eet_error:
         eina_stringshare_del(dir);
     eina_list_free(extra_dirs);
     eina_list_free(store_dirs);
+    eina_log_domain_unregister(_efreet_desktop_cache_log_dom);
     eina_shutdown();
 eina_error:
     if (lockfd >= 0) close(lockfd);

@@ -20,8 +20,6 @@ EAPI const char *efreet_desktop_cache_file(void);
 EAPI const char *efreet_icon_cache_file(const char *theme);
 EAPI const char *efreet_icon_theme_cache_file(void);
 
-EAPI void efreet_cache_array_string_free(Efreet_Cache_Array_String *array);
-
 EAPI Eet_Data_Descriptor *efreet_version_edd(void);
 EAPI Eet_Data_Descriptor *efreet_desktop_edd(void);
 EAPI Eet_Data_Descriptor *efreet_hash_array_string_edd(void);
@@ -33,6 +31,7 @@ EAPI Eet_Data_Descriptor *efreet_icon_fallback_edd(void);
 
 typedef struct _Efreet_Cache_Icon_Theme Efreet_Cache_Icon_Theme;
 typedef struct _Efreet_Cache_Directory Efreet_Cache_Directory;
+typedef struct _Efreet_Cache_Desktop Efreet_Cache_Desktop;
 
 struct _Efreet_Cache_Icon_Theme
 {
@@ -52,6 +51,13 @@ struct _Efreet_Cache_Icon_Theme
 struct _Efreet_Cache_Directory
 {
     long long modified_time;
+};
+
+struct _Efreet_Cache_Desktop
+{
+    Efreet_Desktop desktop;
+
+    double check_time; /**< Last time we check for disk modification */
 };
 
 #endif
