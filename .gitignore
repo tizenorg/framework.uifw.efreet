@@ -46,3 +46,16 @@ src/tests/efreet_icon_cache_dump
 src/tests/efreet_spec_test
 src/tests/efreet_test
 /stamp-h1
+debian/*.debhelper.log
+debian/*.substvars
+debian/*.debhelper
+debian/libecore-bin/
+config.guess.cdbs-orig
+config.sub.cdbs-orig
+/debian/files
+/debian/stamp-*
+/debian/tmp/
+/debian/libefreet-dbg/
+/debian/libefreet-dev/
+/debian/libefreet-doc/
+/debian/libefreet/
