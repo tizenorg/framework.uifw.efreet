@@ -1,3 +1,9 @@
+efreet (1.0.0.001+svn.64997slp2+build01) unstable; urgency=low
+
+  * Merge with upstream @64997
+
+ -- Mike McCormack <mj.mccormack@samsung.com>  Thu, 10 Nov 2011 14:06:05 +0900
+
 efreet (1.0.0.001+svn.64137slp2+build01) unstable; urgency=low
 
   * Merge with upstream @64137
