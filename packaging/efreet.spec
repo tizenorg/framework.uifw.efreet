@@ -1,11 +1,11 @@
 Name:       efreet
 Summary:    FreeDesktop.Org Compatibility Library
-Version:    1.0.0.001+svn.62616slp2
-Release:    1
+Version:    1.1.0+svn.67403slp2
+Release:    1.1
 Group:      TO_BE/FILLED_IN
 License:    BSD
 URL:        http://www.enlightenment.org/
-Source0:    http://download.enlightenment.org/releases/efreet-%{version}.tar.bz2
+Source0:    http://download.enlightenment.org/releases/efreet-%{version}.tar.gz
 Requires(post): /sbin/ldconfig
 Requires(postun): /sbin/ldconfig
 BuildRequires:  pkgconfig(ecore)
