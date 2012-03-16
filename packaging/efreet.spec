@@ -1,11 +1,12 @@
+#sbs-git:slp/pkgs/e/efreet efreet 1.1.0+svn.68229slp2+build01 96633d447858c306751083627e503e1e3b2bb0e1
 Name:       efreet
 Summary:    FreeDesktop.Org Compatibility Library
-Version:    1.0.0.001+svn.62616slp2
+Version: 1.1.0+svn.68229slp2+build01
 Release:    1
 Group:      TO_BE/FILLED_IN
-License:    BSD
+License:    TO_BE/FILLED_IN
 URL:        http://www.enlightenment.org/
-Source0:    http://download.enlightenment.org/releases/efreet-%{version}.tar.bz2
+Source0:    %{name}-%{version}.tar.gz
 Requires(post): /sbin/ldconfig
 Requires(postun): /sbin/ldconfig
 BuildRequires:  pkgconfig(ecore)
@@ -40,6 +41,8 @@ Library that implements freedesktop.org specs (devel)
 %setup -q
 
 %build
+export CFLAGS+=" -fvisibility=hidden -fPIC"
+export LDFLAGS+=" -fvisibility=hidden -Wl,--hash-style=both -Wl,--as-needed"
 
 %autogen --disable-static
 %configure --disable-static
