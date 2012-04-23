@@ -1,3 +1,11 @@
+efreet (1.2.0+svn.70300slp2+build01) unstable; urgency=low
+
+  * Package Upload
+  * Git: slp/pkgs/e/efreet
+  * Tag: efreet_1.2.0+svn.70300slp2+build01
+
+ -- Jaehwan Kim <jae.hwan.kim@samsung.com>  Mon, 23 Apr 2012 15:29:37 +0900
+
 efreet (1.2.0+svn.70210slp2+build01) unstable; urgency=low
 
   * Package Upload
