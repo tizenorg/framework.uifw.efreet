@@ -1,3 +1,19 @@
+efreet (1.1.0+svn.69484slp2+build01) unstable; urgency=low
+
+  * Package Upload
+  * Git: slp/pkgs/e/efreet
+  * Tag: efreet_1.1.0+svn.69484slp2+build01
+
+ -- Jeonghyun Yun <jh0506.yun@samsung.com>  Wed, 28 Mar 2012 14:30:33 +0900
+
+efreet (1.1.0+svn.68229slp2+build01) unstable; urgency=low
+
+  * Package upload
+  * Git: slp/pkgs/e/efreet
+  * Tag: efreet_1.1.0+svn.68229slp2+build01
+
+ -- Jeonghyun Yun <jh0506.yun@samsung.com>  Fri, 02 Mar 2012 06:34:23 -0500
+
 efreet (1.1.0+svn.67403slp2+build01) unstable; urgency=low
 
   * Package Upload
