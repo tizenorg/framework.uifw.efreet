@@ -1,3 +1,11 @@
+efreet (1.2.0+svn.70375slp2+build03) unstable; urgency=low
+
+  * Change debian/libefreet.install script to install efreet_icon_cache_create
+  * Git: slp/pkgs/e/efreet
+  * Tag: efreet_1.2.0+svn.70375slp2+build03
+
+ -- Doyoun Kang <doyoun.kang@samsung.com>  Tue, 08 May 2012 11:07:12 +0900
+
 efreet (1.2.0+svn.70375slp2+build02) unstable; urgency=low
 
   * Package Upload
