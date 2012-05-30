@@ -7,6 +7,7 @@ Group:      System/Libraries
 License:    BSD
 URL:        http://www.enlightenment.org/
 Source0:    %{name}-%{version}.tar.gz
+Source1001: packaging/efreet.manifest 
 Requires(post): /sbin/ldconfig
 Requires(postun): /sbin/ldconfig
 BuildRequires:  pkgconfig(ecore)
@@ -41,6 +42,7 @@ Library that implements freedesktop.org specs (devel)
 %setup -q
 
 %build
+cp %{SOURCE1001} .
 export CFLAGS+=" -fvisibility=hidden -fPIC"
 export LDFLAGS+=" -fvisibility=hidden -Wl,--hash-style=both -Wl,--as-needed"
 
@@ -57,6 +59,7 @@ rm -rf %{buildroot}
 %postun -p /sbin/ldconfig
 
 %files
+%manifest efreet.manifest
 %defattr(-,root,root,-)
 /usr/lib/*.so.*
 /usr/bin/*
@@ -64,6 +67,7 @@ rm -rf %{buildroot}
 
 
 %files devel
+%manifest efreet.manifest
 %defattr(-,root,root,-)
 /usr/include/*
 /usr/lib/*.so
