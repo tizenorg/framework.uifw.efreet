@@ -2,15 +2,16 @@
 Name:       efreet
 Summary:    FreeDesktop.Org Compatibility Library
 Version:    1.2.0+svn.70375slp2+build02
-Release:    1
+Release:    2
 Group:      System/Libraries
 License:    BSD
 URL:        http://www.enlightenment.org/
 Source0:    %{name}-%{version}.tar.gz
 Requires(post): /sbin/ldconfig
 Requires(postun): /sbin/ldconfig
-BuildRequires:  pkgconfig(ecore)
-BuildRequires:  pkgconfig(eina)
+BuildRequires:  eina-devel
+BuildRequires:  eet-devel
+BuildRequires:  ecore-devel
 
 
 %description
