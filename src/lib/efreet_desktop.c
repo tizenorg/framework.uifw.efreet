@@ -162,6 +162,8 @@ efreet_desktop_get(const char *file)
 {
     Efreet_Desktop *desktop;
 
+    EINA_SAFETY_ON_NULL_RETURN_VAL(file, NULL);
+
     desktop = efreet_desktop_new(file);
     if (!desktop) return NULL;
 
@@ -187,7 +189,7 @@ efreet_desktop_get(const char *file)
 EAPI int
 efreet_desktop_ref(Efreet_Desktop *desktop)
 {
-    if (!desktop) return 0;
+    EINA_SAFETY_ON_NULL_RETURN_VAL(desktop, 0);
     desktop->ref++;
     return desktop->ref;
 }
@@ -196,6 +198,8 @@ EAPI Efreet_Desktop *
 efreet_desktop_empty_new(const char *file)
 {
     Efreet_Desktop *desktop;
+
+    EINA_SAFETY_ON_NULL_RETURN_VAL(file, NULL);
 
     desktop = NEW(Efreet_Desktop, 1);
     if (!desktop) return NULL;
@@ -213,7 +217,8 @@ efreet_desktop_new(const char *file)
 {
     Efreet_Desktop *desktop = NULL;
 
-    if (!file) return NULL;
+    EINA_SAFETY_ON_NULL_RETURN_VAL(file, NULL);
+
     desktop = efreet_cache_desktop_find(file);
     if (desktop)
     {
@@ -235,7 +240,8 @@ efreet_desktop_uncached_new(const char *file)
     Efreet_Desktop *desktop = NULL;
     char rp[PATH_MAX];
 
-    if (!file) return NULL;
+    EINA_SAFETY_ON_NULL_RETURN_VAL(file, NULL);
+
     if (!realpath(file, rp)) return NULL;
     if (!ecore_file_exists(rp)) return NULL;
 
@@ -258,6 +264,8 @@ efreet_desktop_save(Efreet_Desktop *desktop)
     Efreet_Desktop_Type_Info *info;
     Efreet_Ini *ini;
     int ok = 1;
+
+    EINA_SAFETY_ON_NULL_RETURN_VAL(desktop, 0);
 
     ini = efreet_ini_new(NULL);
     if (!ini) return 0;
@@ -309,6 +317,9 @@ efreet_desktop_save(Efreet_Desktop *desktop)
 EAPI int
 efreet_desktop_save_as(Efreet_Desktop *desktop, const char *file)
 {
+    EINA_SAFETY_ON_NULL_RETURN_VAL(desktop, 0);
+    EINA_SAFETY_ON_NULL_RETURN_VAL(file, 0);
+
     /* If we save data from eet as new, we will be in trouble */
     if (desktop->eet) return 0;
 
@@ -381,14 +392,15 @@ efreet_desktop_environment_get(void)
 EAPI unsigned int
 efreet_desktop_category_count_get(Efreet_Desktop *desktop)
 {
-    if (!desktop || !desktop->categories) return 0;
+    EINA_SAFETY_ON_NULL_RETURN_VAL(desktop, 0);
     return eina_list_count(desktop->categories);
 }
 
 EAPI void
 efreet_desktop_category_add(Efreet_Desktop *desktop, const char *category)
 {
-    if (!desktop) return;
+    EINA_SAFETY_ON_NULL_RETURN(desktop);
+    EINA_SAFETY_ON_NULL_RETURN(category);
 
     if (eina_list_search_unsorted(desktop->categories,
                                   EINA_COMPARE_CB(strcmp), category)) return;
@@ -402,7 +414,7 @@ efreet_desktop_category_del(Efreet_Desktop *desktop, const char *category)
 {
     char *found = NULL;
 
-    if (!desktop || !desktop->categories) return 0;
+    EINA_SAFETY_ON_NULL_RETURN_VAL(desktop, 0);
 
     if ((found = eina_list_search_unsorted(desktop->categories,
                                            EINA_COMPARE_CB(strcmp), category)))
@@ -453,8 +465,8 @@ efreet_desktop_type_alias(int from_type, const char *alias)
 EAPI Eina_Bool
 efreet_desktop_x_field_set(Efreet_Desktop *desktop, const char *key, const char *data)
 {
-    if (!desktop || strncmp(key, "X-", 2))
-        return EINA_FALSE;
+    EINA_SAFETY_ON_NULL_RETURN_VAL(desktop, EINA_FALSE);
+    EINA_SAFETY_ON_TRUE_RETURN_VAL(strncmp(key, "X-", 2), EINA_FALSE);
 
     if (!desktop->x)
         desktop->x = eina_hash_string_superfast_new(EINA_FREE_CB(eina_stringshare_del));
@@ -470,11 +482,9 @@ efreet_desktop_x_field_get(Efreet_Desktop *desktop, const char *key)
 {
     const char *ret;
 
-    if (!desktop || strncmp(key, "X-", 2))
-        return NULL;
-
-    if (!desktop->x)
-        return NULL;
+    EINA_SAFETY_ON_NULL_RETURN_VAL(desktop, NULL);
+    EINA_SAFETY_ON_NULL_RETURN_VAL(desktop->x, NULL);
+    EINA_SAFETY_ON_TRUE_RETURN_VAL(strncmp(key, "X-", 2), NULL);
 
     ret = eina_hash_find(desktop->x, key);
     if (!ret)
@@ -486,11 +496,9 @@ efreet_desktop_x_field_get(Efreet_Desktop *desktop, const char *key)
 EAPI Eina_Bool
 efreet_desktop_x_field_del(Efreet_Desktop *desktop, const char *key)
 {
-    if (!desktop || strncmp(key, "X-", 2))
-        return EINA_FALSE;
-
-    if (!desktop->x)
-        return EINA_FALSE;
+    EINA_SAFETY_ON_NULL_RETURN_VAL(desktop, EINA_FALSE);
+    EINA_SAFETY_ON_TRUE_RETURN_VAL(strncmp(key, "X-", 2), EINA_FALSE);
+    EINA_SAFETY_ON_NULL_RETURN_VAL(desktop->x, EINA_FALSE);
 
     return eina_hash_del_by_key(desktop->x, key);
 }
@@ -498,6 +506,7 @@ efreet_desktop_x_field_del(Efreet_Desktop *desktop, const char *key)
 EAPI void *
 efreet_desktop_type_data_get(Efreet_Desktop *desktop)
 {
+    EINA_SAFETY_ON_NULL_RETURN_VAL(desktop, NULL);
     return desktop->type_data;
 }
 
@@ -509,7 +518,7 @@ efreet_desktop_string_list_parse(const char *string)
     char *s, *p;
     size_t len;
 
-    if (!string) return NULL;
+    EINA_SAFETY_ON_NULL_RETURN_VAL(string, NULL);
 
     len = strlen(string) + 1;
     tmp = alloca(len);
@@ -697,10 +706,11 @@ efreet_desktop_application_fields_parse(Efreet_Desktop *desktop, Efreet_Ini *ini
     val = efreet_ini_string_get(ini, "StartupWMClass");
     if (val) desktop->startup_wm_class = strdup(val);
 
-    desktop->categories = efreet_desktop_string_list_parse(
-                                efreet_ini_string_get(ini, "Categories"));
-    desktop->mime_types = efreet_desktop_string_list_parse(
-                                efreet_ini_string_get(ini, "MimeType"));
+    val = efreet_ini_string_get(ini, "Categories");
+    if (val)
+      desktop->categories = efreet_desktop_string_list_parse(val);
+    val = efreet_ini_string_get(ini, "MimeType");
+    if (val) desktop->mime_types = efreet_desktop_string_list_parse(val);
 
     desktop->terminal = efreet_ini_boolean_get(ini, "Terminal");
     desktop->startup_notify = efreet_ini_boolean_get(ini, "StartupNotify");
@@ -800,10 +810,11 @@ efreet_desktop_generic_fields_parse(Efreet_Desktop *desktop, Efreet_Ini *ini)
     const char *not_show_in = NULL, *only_show_in = NULL;
 
     val = efreet_ini_localestring_get(ini, "Name");
+    if (!val) val = efreet_ini_localestring_get(ini, "_Name");
     if (val) desktop->name = strdup(val);
     else
     {
-        ERR("efreet_desktop_generic_fields_parse error: no Name");
+        ERR("efreet_desktop_generic_fields_parse error: no Name or _Name fields");
         return 0;
     }
 
@@ -811,6 +822,7 @@ efreet_desktop_generic_fields_parse(Efreet_Desktop *desktop, Efreet_Ini *ini)
     if (val) desktop->generic_name = strdup(val);
 
     val = efreet_ini_localestring_get(ini, "Comment");
+    if (!val) val = efreet_ini_localestring_get(ini, "_Comment");
     if (val) desktop->comment = strdup(val);
 
     val = efreet_ini_localestring_get(ini, "Icon");

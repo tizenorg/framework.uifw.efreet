@@ -1,3 +1,18 @@
+Efreet 1.3.0
+
+Changes since Efreet 1.2.0:
+---------------------------
+
+Improvements:
+
+    * Faster mime type loading.
+
+
+Additions:
+
+    * Support XDG_DESKTOP_DIR
+    * efreet_dirs_reset() for refreshing env vars after locale switches
+
 Efreet 1.2.0
 
 Changes since Efreet 1.1.0:

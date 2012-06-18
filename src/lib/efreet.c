@@ -136,6 +136,11 @@ shutdown_eina:
 EAPI int
 efreet_shutdown(void)
 {
+    if (_efreet_init_count <= 0)
+      {
+         EINA_LOG_ERR("Init count not greater than 0 in shutdown.");
+         return 0;
+      }
     if (--_efreet_init_count != 0)
         return _efreet_init_count;
 
@@ -312,6 +317,8 @@ efreet_fsetowner(int fd)
 EAPI void
 efreet_setowner(const char *path)
 {
+    EINA_SAFETY_ON_NULL_RETURN(path);
+
     int fd;
 
     fd = open(path, O_RDONLY);
