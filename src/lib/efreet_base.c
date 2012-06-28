@@ -53,7 +53,7 @@ static Eina_List  *efreet_dirs_get(const char *key,
 
 /**
  * @internal
- * @return Returns 1 on success or 0 on failure
+ * @return Returns @c 1 on success or @c 0 on failure
  * @brief Initializes the efreet base settings
  */
 int
@@ -119,7 +119,7 @@ EAPI const char *
 efreet_desktop_dir_get(void)
 {
     if (xdg_desktop_dir) return xdg_desktop_dir;
-    xdg_desktop_dir = efreet_dir_get("XDG_DESKTOP_DIR", "/Desktop");
+    xdg_desktop_dir = efreet_dir_get("XDG_DESKTOP_DIR", _("/Desktop"));
     return xdg_desktop_dir;
 }
 
@@ -187,28 +187,18 @@ efreet_hostname_get(void)
     return hostname;
 }
 
-EAPI void
+void
 efreet_dirs_reset(void)
 {
-   const char *s;
-   eina_stringshare_replace(&hostname, NULL);
-   eina_stringshare_replace(&xdg_desktop_dir, NULL);
-   eina_stringshare_replace(&xdg_cache_home, NULL);
-   eina_stringshare_replace(&xdg_config_home, NULL);
-   eina_stringshare_replace(&xdg_data_home, NULL);
-   eina_stringshare_replace(&efreet_home_dir, NULL);
-   EINA_LIST_FREE(xdg_data_dirs, s)
-     eina_stringshare_del(s);
-   EINA_LIST_FREE(xdg_config_dirs, s)
-     eina_stringshare_del(s);
+    eina_stringshare_replace(&xdg_desktop_dir, NULL);
 }
 
 /**
  * @internal
- * @param key The environemnt key to lookup
+ * @param key The environment key to lookup
  * @param fallback The fallback value to use
  * @return Returns the directory related to the given key or the fallback
- * @brief This trys to determine the correct directory name given the
+ * @brief This tries to determine the correct directory name given the
  * environment key @a key and fallbacks @a fallback.
  */
 static const char *

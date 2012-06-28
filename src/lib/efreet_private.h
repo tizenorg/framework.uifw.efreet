@@ -1,6 +1,13 @@
 #ifndef EFREET_PRIVATE_H
 #define EFREET_PRIVATE_H
 
+#ifdef ENABLE_NLS
+# include <libintl.h>
+# define _(str) dgettext(PACKAGE, str)
+#else
+# define _(str) (str)
+#endif
+
 /**
  * @file efreet_private.h
  * @brief Contains methods and defines that are private to the Efreet
@@ -179,6 +186,7 @@ int efreet_util_init(void);
 int efreet_util_shutdown(void);
 
 const char *efreet_home_dir_get(void);
+void        efreet_dirs_reset(void);
 
 const char *efreet_lang_get(void);
 const char *efreet_lang_country_get(void);
