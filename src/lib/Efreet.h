@@ -59,7 +59,7 @@ extern "C" {
 #endif
 
 #define EFREET_VERSION_MAJOR 1
-#define EFREET_VERSION_MINOR 2
+#define EFREET_VERSION_MINOR 6
    
    typedef struct _Efreet_Version
      {
@@ -96,7 +96,7 @@ EAPI int efreet_shutdown(void);
 /**
  * @brief Resets language dependent variables and resets language dependent
  * caches This must be called whenever the locale is changed.
- * @since 1.3
+ * @since 1.7
  */
 EAPI void efreet_lang_reset(void);
 

@@ -22,6 +22,10 @@ void *alloca (size_t);
 
 #include <unistd.h>
 
+#ifdef _WIN32
+# include <winsock2.h>
+#endif
+
 /* define macros and variable for using the eina logging system  */
 #define EFREET_MODULE_LOG_DOM _efreet_base_log_dom
 static int _efreet_base_log_dom = -1;
@@ -50,6 +54,7 @@ static const char *hostname = NULL;
 static const char *efreet_dir_get(const char *key, const char *fallback);
 static Eina_List  *efreet_dirs_get(const char *key,
                                         const char *fallback);
+static const char *efreet_user_dir_get(const char *key, const char *fallback);
 
 /**
  * @internal
@@ -119,7 +124,7 @@ EAPI const char *
 efreet_desktop_dir_get(void)
 {
     if (xdg_desktop_dir) return xdg_desktop_dir;
-    xdg_desktop_dir = efreet_dir_get("XDG_DESKTOP_DIR", _("/Desktop"));
+    xdg_desktop_dir = efreet_user_dir_get("XDG_DESKTOP_DIR", _("Desktop"));
     return xdg_desktop_dir;
 }
 
@@ -215,12 +220,10 @@ efreet_dir_get(const char *key, const char *fallback)
 
         user = efreet_home_dir_get();
         len = strlen(user) + strlen(fallback) + 1;
-        dir = malloc(len);
-        if (!dir) return NULL;
+        dir = alloca(len);
         snprintf(dir, len, "%s%s", user, fallback);
 
         t = eina_stringshare_add(dir);
-        FREE(dir);
     }
     else t = eina_stringshare_add(dir);
 
@@ -278,4 +281,107 @@ efreet_dirs_get(const char *key, const char *fallback)
     }
 
     return dirs;
+}
+
+static const char *
+efreet_env_expand(const char *in)
+{
+   Eina_Strbuf *sb;
+   const char *ret, *p, *e1 = NULL, *e2 = NULL, *val;
+   char *env;
+
+   if (!in) return NULL;
+   sb = eina_strbuf_new();
+   if (!sb) return NULL;
+   
+   /* maximum length of any env var is the input string */
+   env = alloca(strlen(in) + 1);
+   for (p = in; *p; p++)
+     {
+        if (!e1)
+          {
+             if (*p == '$') e1 = p + 1;
+             else eina_strbuf_append_char(sb, *p);
+          }
+        else if (!(((*p >= 'a') && (*p <= 'z')) ||
+                   ((*p >= 'A') && (*p <= 'Z')) ||
+                   ((*p >= '0') && (*p <= '9')) ||
+                   (*p == '_')))
+          {
+             size_t len;
+             
+             e2 = p;
+             len = (size_t)(e2 - e1);
+             if (len > 0)
+               {
+                  memcpy(env, e1, len);
+                  env[len] = 0;
+                  val = getenv(env);
+                  if (val) eina_strbuf_append(sb, val);
+               }
+             e1 = NULL;
+             eina_strbuf_append_char(sb, *p);
+          }
+     }
+   ret = eina_stringshare_add(eina_strbuf_string_get(sb));
+   eina_strbuf_free(sb);
+   return ret;
+}
+
+/**
+ * @internal
+ * @param key The user-dirs key to lookup
+ * @param fallback The fallback value to use
+ * @return Returns the directory related to the given key or the fallback
+ * @brief This tries to determine the correct directory name given the
+ * user-dirs key @a key and fallbacks @a fallback.
+ */
+static const char *
+efreet_user_dir_get(const char *key, const char *fallback)
+{
+   Eina_File *file = NULL;
+   Eina_File_Line *line;
+   Eina_Iterator *it = NULL;
+   const char *config_home;
+   char path[PATH_MAX];
+   char *ret = NULL;
+
+   config_home = efreet_config_home_get();
+   snprintf(path, sizeof(path), "%s/user-dirs.dirs", config_home);
+
+   file = eina_file_open(path, EINA_FALSE);
+   if (!file) goto fallback;
+   it = eina_file_map_lines(file);
+   if (!it) goto fallback;
+   EINA_ITERATOR_FOREACH(it, line)
+     {
+        const char *eq, *end;
+
+        if (line->length < 3) continue;
+        if (line->start[0] == '#') continue;
+        if (strncmp(line->start, "XDG", 3)) continue;
+        eq = memchr(line->start, '=', line->length);
+        if (!eq) continue;
+        if (strncmp(key, line->start, eq - line->start)) continue;
+        if (++eq >= line->end) continue;
+        if (*eq != '"') continue;
+        if (++eq >= line->end) continue;
+        end = memchr(eq, '"', line->end - eq);
+        if (!end) continue;
+        ret = alloca(end - eq + 1);
+        memcpy(ret, eq, end - eq);
+        ret[end - eq] = '\0';
+        break;
+     }
+fallback:
+   if (it) eina_iterator_free(it);
+   if (file) eina_file_close(file);
+   if (!ret)
+     {
+        const char *home;
+        home = efreet_home_dir_get();
+        ret = alloca(strlen(home) + strlen(fallback) + 2);
+        sprintf(ret, "%s/%s", home, fallback);
+     }
+   return efreet_env_expand(ret);
 }
