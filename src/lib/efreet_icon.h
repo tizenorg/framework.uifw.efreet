@@ -1,4 +1,3 @@
-/* vim: set sw=4 ts=4 sts=4 et: */
 #ifndef EFREET_ICON_H
 #define EFREET_ICON_H
 
@@ -12,38 +11,34 @@
  * @{
  */
 
+
+/**
+ * Event id for cache update.
+ */
+EAPI extern int EFREET_EVENT_ICON_CACHE_UPDATE;
+
 /**
  * The possible contexts for an icon directory
  */
-enum Efreet_Icon_Theme_Context
+typedef enum Efreet_Icon_Theme_Context
 {
     EFREET_ICON_THEME_CONTEXT_NONE,
     EFREET_ICON_THEME_CONTEXT_ACTIONS,
     EFREET_ICON_THEME_CONTEXT_DEVICES,
     EFREET_ICON_THEME_CONTEXT_FILESYSTEMS,
     EFREET_ICON_THEME_CONTEXT_MIMETYPES
-};
-
-/**
- * Efreet_icon_Theme_Context
- */
-typedef enum Efreet_Icon_Theme_Context Efreet_Icon_Theme_Context;
+} Efreet_Icon_Theme_Context;
 
 /**
  * The possible size types for an icon directory
  */
-enum Efreet_Icon_Size_Type
+typedef enum Efreet_Icon_Size_Type
 {
     EFREET_ICON_SIZE_TYPE_NONE,
     EFREET_ICON_SIZE_TYPE_FIXED,
     EFREET_ICON_SIZE_TYPE_SCALABLE,
     EFREET_ICON_SIZE_TYPE_THRESHOLD
-};
-
-/**
- * Efreet_Icon_Size_Type
- */
-typedef enum Efreet_Icon_Size_Type Efreet_Icon_Size_Type;
+} Efreet_Icon_Size_Type;
 
 /**
  * Efreet_Icon_Theme
@@ -62,29 +57,15 @@ struct Efreet_Icon_Theme
         const char *name;       /**< The user visible name */
     } name;                     /**< The different names for the theme */
 
-    char *comment;        /**< String describing the theme */
-    char *example_icon;   /**< Icon to use as an example of the theme */
+    const char *comment;        /**< String describing the theme */
+    const char *example_icon;   /**< Icon to use as an example of the theme */
 
     /* An icon theme can have multiple directories that store it's icons. We
-     * need to be able to find a search each one. If count is 1 then path
-     * will be a char * pointing to the directory. If count > 1 then path
-     * will be an Ecore_List of char *'s pointing to the directories */
-    struct
-    {
-        void *path;       /**< The paths */
-        int count;        /**< The number of path's */
-    } paths;              /**< The paths to this theme */
+     * need to be able to find a search each one. */
 
-    Ecore_List *inherits;       /**< Icon themes we inherit from */
-    Ecore_List *directories;    /**< List of subdirectories for this theme */
-
-    double last_cache_check;    /**< Last time the cache was checked */
-
-    unsigned char hidden:1;     /**< Should this theme be hidden from users */
-    unsigned char valid:1;      /**< Have we seen an index for this theme */
-    unsigned char fake:1;       /**< This isnt' a real theme but the user has
-                                        tried to query from it. We create the
-                                        fake one to give us the theme cache. */
+    Eina_List *paths;           /**< The paths */
+    Eina_List *inherits;        /**< Icon themes we inherit from */
+    Eina_List *directories;     /**< List of subdirectories for this theme */
 };
 
 /**
@@ -98,7 +79,7 @@ typedef struct Efreet_Icon_Theme_Directory Efreet_Icon_Theme_Directory;
  */
 struct Efreet_Icon_Theme_Directory
 {
-    char *name;               /**< The directory name */
+    const char *name;               /**< The directory name */
     Efreet_Icon_Theme_Context context;  /**< The type of icons in the dir */
     Efreet_Icon_Size_Type type;     /**< The size type for the icons */
 
@@ -122,8 +103,8 @@ typedef struct Efreet_Icon Efreet_Icon;
  */
 struct Efreet_Icon
 {
-    char *path;       /**< Full path to the icon */
-    char *name;       /**< Translated UTF8 string that can
+    const char *path;       /**< Full path to the icon */
+    const char *name;       /**< Translated UTF8 string that can
                                     be used for the icon name */
 
     struct
@@ -135,21 +116,21 @@ struct Efreet_Icon
     } embedded_text_rectangle;  /**< Rectangle where text can
                                         be displayed on the icon */
 
-    Ecore_List *attach_points; /**< List of points to be used as anchor
+    Eina_List *attach_points; /**< List of points to be used as anchor
                                         points for emblems/overlays */
 
     unsigned int ref_count;    /**< References to this icon */
-    unsigned char has_embedded_text_rectangle:1; /**< Was the embedded
+    unsigned char has_embedded_text_rectangle:1; /**< Has the embedded
                                                         rectangle set */
 };
 
 /**
- * Efreet_Point
+ * Efreet_Icon_Point
  */
 typedef struct Efreet_Icon_Point Efreet_Icon_Point;
 
 /**
- * Efreet_Point
+ * Efreet_Icon_Point
  * @brief Stores an x, y point.
  */
 struct Efreet_Icon_Point
@@ -158,21 +139,107 @@ struct Efreet_Icon_Point
     int y;          /**< y coord */
 };
 
+/**
+ * @return Returns the user icon directory
+ * @brief Returns the user icon directory
+ */
 EAPI const char        *efreet_icon_user_dir_get(void);
+
+/**
+ * @return Returns the deprecated user icon directory
+ * @brief Returns the deprecated user icon directory
+ */
+EAPI const char        *efreet_icon_deprecated_user_dir_get(void);
+
+/**
+ * @param ext The extension to add to the list of checked extensions
+ * @return Returns no value.
+ * @brief Adds the given extension to the list of possible icon extensions
+ */
 EAPI void               efreet_icon_extension_add(const char *ext);
 
-EAPI Ecore_List        *efreet_icon_extra_list_get(void);
-EAPI Ecore_List        *efreet_icon_theme_list_get(void);
+
+/**
+ * @return Returns a list of strings that are paths to other icon directories
+ * @brief Gets the list of all extra directories to look for icons. These
+ * directories are used to look for icons after looking in the user icon dir
+ * and before looking in standard system directories. The order of search is
+ * from first to last directory in this list. the strings in the list should
+ * be created with eina_stringshare_add().
+ */
+EAPI Eina_List        **efreet_icon_extra_list_get(void);
+
+/**
+ * @return Returns a list of strings that are icon extensions to look for
+ * @brief Gets the list of all icon extensions to look for
+ */
+EAPI Eina_List         *efreet_icon_extensions_list_get(void);
+
+/**
+ * @return Returns a list of Efreet_Icon structs for all the non-hidden icon
+ * themes
+ * @brief Retrieves all of the non-hidden icon themes available on the system.
+ * The returned list must be freed. Do not free the list data.
+ */
+EAPI Eina_List         *efreet_icon_theme_list_get(void);
+
+/**
+ * @param theme_name The theme to look for
+ * @return Returns the icon theme related to the given theme name or NULL if
+ * none exists.
+ * @brief Tries to get the icon theme structure for the given theme name
+ */
 EAPI Efreet_Icon_Theme *efreet_icon_theme_find(const char *theme_name);
+
+/**
+ * @param theme_name The icon theme to look for
+ * @param icon The icon to look for
+ * @param size The icon size to look for
+ * @return Returns the Efreet_Icon structure representing this icon or NULL
+ * if the icon is not found
+ * @brief Retrieves all of the information about the given icon.
+ */
 EAPI Efreet_Icon       *efreet_icon_find(const char *theme_name,
                                             const char *icon,
                                             unsigned int size);
-EAPI char              *efreet_icon_list_find(const char *theme_name,
-                                                Ecore_List *icons,
+
+/**
+ * @param theme_name The icon theme to look for
+ * @param icons List of icons to look for
+ * @param size; The icon size to look for
+ * @return Returns the path representing first found icon or
+ * NULL if none of the icons are found
+ * @brief Retrieves all of the information about the first found icon in
+ * the list.
+ * @note This function will search the given theme for all icons before falling
+ * back. This is useful when searching for mimetype icons.
+ *
+ * There is no guarantee for how long the pointer to the path will be valid.
+ * If the pointer is to be kept, the user must create a copy of the path.
+ */
+EAPI const char        *efreet_icon_list_find(const char *theme_name,
+                                                Eina_List *icons,
                                                 unsigned int size);
-EAPI char              *efreet_icon_path_find(const char *theme_name,
+
+/**
+ * @param theme_name The icon theme to look for
+ * @param icon The icon to look for
+ * @param size; The icon size to look for
+ * @return Returns the path to the given icon or NULL if none found
+ * @brief Retrives the path to the given icon.
+ *
+ * There is no guarantee for how long the pointer to the path will be valid.
+ * If the pointer is to be kept, the user must create a copy of the path.
+ */
+EAPI const char        *efreet_icon_path_find(const char *theme_name,
                                                 const char *icon,
                                                 unsigned int size);
+
+/**
+ * @param icon The Efreet_Icon to cleanup
+ * @return Returns no value.
+ * @brief Free's the given icon and all its internal data.
+ */
 EAPI void               efreet_icon_free(Efreet_Icon *icon);
 
 /**

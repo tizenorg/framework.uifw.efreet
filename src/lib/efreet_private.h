@@ -1,6 +1,12 @@
-/* vim: set sw=4 ts=4 sts=4 et: */
 #ifndef EFREET_PRIVATE_H
 #define EFREET_PRIVATE_H
+
+#ifdef ENABLE_NLS
+# include <libintl.h>
+# define _(str) dgettext(PACKAGE, str)
+#else
+# define _(str) (str)
+#endif
 
 /**
  * @file efreet_private.h
@@ -10,31 +16,6 @@
  *
  * @{
  */
-
-#include "config.h"
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-#include <unistd.h>
-#include <ctype.h>
-#include <fcntl.h>
-#include <sys/mman.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <dirent.h>
-#include <fnmatch.h>
-#include <limits.h>
-
-#ifdef HAVE_ALLOCA_H
-#include <alloca.h>
-#endif
-
-#include <Ecore.h>
-#include <Ecore_File.h>
-#include <Ecore_Str.h>
-
-#include "efreet_xml.h"
-#include "efreet_ini.h"
 
 /**
  * @def NEW(x, c)
@@ -56,11 +37,11 @@
 
 /**
  * @def IF_RELEASE(x)
- * If x is set, ecore_string_release x and set to NULL
+ * If x is set, eina_stringshare_del x and set to NULL
  */
 #define IF_RELEASE(x) do { \
     if (x) { \
-        const char *__tmp; __tmp = (x); (x) = NULL; ecore_string_release(__tmp); \
+        const char *__tmp; __tmp = (x); (x) = NULL; eina_stringshare_del(__tmp); \
     } \
     (x) = NULL; \
 } while (0)
@@ -69,22 +50,11 @@
  * @def IF_FREE_LIST(x)
  * If x is a valid pointer destroy x and set to NULL
  */
-#define IF_FREE_LIST(x) do { \
-    if (x) { \
-        Ecore_List *__tmp; __tmp = (x); (x) = NULL; ecore_list_destroy(__tmp); \
-    } \
-    (x) = NULL; \
-} while (0)
-
-/**
- * @def IF_FREE_DLIST(x)
- * If x is a valid pointer destroy x and set to NULL
- */
-#define IF_FREE_DLIST(x) do { \
-    if (x) { \
-        Ecore_DList *__tmp; __tmp = (x); (x) = NULL; ecore_dlist_destroy(__tmp); \
-    } \
-    (x) = NULL; \
+#define IF_FREE_LIST(list, free_cb) do { \
+    void *_data; \
+    EINA_LIST_FREE(list, _data) \
+    free_cb(_data); \
+    list = NULL; \
 } while (0)
 
 /**
@@ -93,111 +63,130 @@
  */
 #define IF_FREE_HASH(x) do { \
     if (x) { \
-        Ecore_Hash *__tmp; __tmp = (x); (x) = NULL; ecore_hash_destroy(__tmp); \
+        Eina_Hash *__tmp; __tmp = (x); (x) = NULL; eina_hash_free(__tmp); \
     } \
     (x) = NULL; \
 } while (0)
 
 /**
- * @def __UNUSED__
- * A flag to mark a function parameter as unused
+ * @def IF_FREE_HASH_CB(x, cb)
+ * If x is a valid pointer destroy x with cb and set to NULL
  */
-#if HAVE___ATTRIBUTE__
-#define __UNUSED__ __attribute__((unused))
-#else
-#define __UNUSED__
+#define IF_FREE_HASH_CB(x, cb) do { \
+    if (x) { \
+        Eina_Hash *__tmp; __tmp = (x); (x) = NULL; efreet_hash_free(__tmp, cb); \
+    } \
+    (x) = NULL; \
+} while (0)
+
+#ifdef EFREET_DEFAULT_LOG_COLOR
+#undef EFREET_DEFAULT_LOG_COLOR
+#endif
+#define EFREET_DEFAULT_LOG_COLOR "\033[36m"
+
+#ifndef EFREET_MODULE_LOG_DOM
+#error "Need to define a log domain"
 #endif
 
-#ifndef PATH_MAX
 /**
- * @def PATH_MAX
- * Convenience define to set the maximim path length
+ * macros that are used all around the code for message processing
+ * four macros are defined ERR, WRN, DGB, INF. 
+ * EFREET_MODULE_LOG_DOM should be defined individually for each module
  */
-#define PATH_MAX 4096
+#ifdef ERR
+#undef ERR
 #endif
+#define ERR(...) EINA_LOG_DOM_ERR(EFREET_MODULE_LOG_DOM, __VA_ARGS__)
+#ifdef DBG
+#undef DBG
+#endif
+#define DBG(...) EINA_LOG_DOM_DBG(EFREET_MODULE_LOG_DOM, __VA_ARGS__)
+#ifdef INF
+#undef INF
+#endif
+#define INF(...) EINA_LOG_DOM_INFO(EFREET_MODULE_LOG_DOM, __VA_ARGS__)
+#ifdef WRN
+#undef WRN
+#endif
+#define WRN(...) EINA_LOG_DOM_WARN(EFREET_MODULE_LOG_DOM, __VA_ARGS__)
 
-/**
- * @internal
- * The different types of commands in an Exec entry
- */
-enum Efreet_Desktop_Command_Flag
+typedef struct _Efreet_Cache_Icon Efreet_Cache_Icon;
+typedef struct _Efreet_Cache_Icon_Element Efreet_Cache_Icon_Element;
+typedef struct _Efreet_Cache_Fallback_Icon Efreet_Cache_Fallback_Icon;
+
+struct _Efreet_Cache_Icon
 {
-    EFREET_DESKTOP_EXEC_FLAG_FULLPATH = 0x0001,
-    EFREET_DESKTOP_EXEC_FLAG_URI      = 0x0002,
-    EFREET_DESKTOP_EXEC_FLAG_DIR      = 0x0004,
-    EFREET_DESKTOP_EXEC_FLAG_FILE     = 0x0008
+    const char *theme;
+
+    Efreet_Cache_Icon_Element **icons;
+    unsigned int icons_count;
 };
 
-/**
- * @internal
- * Efreet_Desktop_Command_Flag
- */
-typedef enum Efreet_Desktop_Command_Flag Efreet_Desktop_Command_Flag;
-
-/**
- * @internal
- * Efreet_Desktop_Command
- */
-typedef struct Efreet_Desktop_Command Efreet_Desktop_Command;
-
-/**
- * @internal
- * Holds information on a desktop Exec command entry
- */
-struct Efreet_Desktop_Command
+struct _Efreet_Cache_Icon_Element
 {
-  Efreet_Desktop *desktop;
-  int num_pending;
+    const char **paths;          /* possible paths for icon */
+    unsigned int paths_count;
 
-  Efreet_Desktop_Command_Flag flags;
+    unsigned short type;         /* size type of icon */
 
-  Efreet_Desktop_Command_Cb cb_command;
-  Efreet_Desktop_Progress_Cb cb_progress;
-  void *data;
-
-  Ecore_List *files; /**< list of Efreet_Desktop_Command_File */
+    unsigned short normal;       /* The size for this icon */
+    unsigned short min;          /* The minimum size for this icon */
+    unsigned short max;          /* The maximum size for this icon */
 };
 
-/**
- * @internal
- * Efreet_Desktop_Command_File
- */
-typedef struct Efreet_Desktop_Command_File Efreet_Desktop_Command_File;
-
-/**
- * @internal
- * Stores information on a file passed to the desktop Exec command
- */
-struct Efreet_Desktop_Command_File
+struct _Efreet_Cache_Fallback_Icon
 {
-  Efreet_Desktop_Command *command;
-  char *dir;
-  char *file;
-  char *fullpath;
-  char *uri;
+    const char *theme;
+    const char **icons;
+    unsigned int icons_count;
+};
 
-  int pending;
+typedef struct _Efreet_Cache_Version Efreet_Cache_Version;
+struct _Efreet_Cache_Version
+{
+    unsigned char major;
+    unsigned char minor;
+};
+
+typedef struct _Efreet_Cache_Hash Efreet_Cache_Hash;
+struct _Efreet_Cache_Hash
+{
+    Eina_Hash *hash;
+};
+
+typedef struct _Efreet_Cache_Array_String Efreet_Cache_Array_String;
+struct _Efreet_Cache_Array_String
+{
+    const char **array;
+    unsigned int array_count;
 };
 
 int efreet_base_init(void);
 void efreet_base_shutdown(void);
+
+int efreet_cache_init(void);
+void efreet_cache_shutdown(void);
 
 int efreet_icon_init(void);
 void efreet_icon_shutdown(void);
 
 int efreet_menu_init(void);
 void efreet_menu_shutdown(void);
-Ecore_List *efreet_default_dirs_get(const char *user_dir,
-                                    Ecore_List *system_dirs,
-                                    const char *suffix);
+EAPI Eina_List *efreet_default_dirs_get(const char *user_dir,
+                                        Eina_List *system_dirs,
+                                        const char *suffix);
 
 int efreet_ini_init(void);
-int efreet_ini_shutdown(void);
+void efreet_ini_shutdown(void);
 
 int efreet_desktop_init(void);
-int efreet_desktop_shutdown(void);
+void efreet_desktop_shutdown(void);
+
+int efreet_util_init(void);
+int efreet_util_shutdown(void);
 
 const char *efreet_home_dir_get(void);
+void        efreet_dirs_reset(void);
 
 const char *efreet_lang_get(void);
 const char *efreet_lang_country_get(void);
@@ -205,7 +194,31 @@ const char *efreet_lang_modifier_get(void);
 
 size_t efreet_array_cat(char *buffer, size_t size, const char *strs[]);
 
-const char *efreet_desktop_environment_get(void);
+void efreet_cache_desktop_update(void);
+void efreet_cache_desktop_close(void);
+void efreet_cache_icon_update(void);
+
+Efreet_Desktop *efreet_cache_desktop_find(const char *file);
+void efreet_cache_desktop_free(Efreet_Desktop *desktop);
+void efreet_cache_desktop_add(Efreet_Desktop *desktop);
+Efreet_Cache_Array_String *efreet_cache_desktop_dirs(void);
+
+Efreet_Cache_Icon *efreet_cache_icon_find(Efreet_Icon_Theme *theme, const char *icon);
+Efreet_Cache_Fallback_Icon *efreet_cache_icon_fallback_find(const char *icon);
+Efreet_Icon_Theme *efreet_cache_icon_theme_find(const char *theme);
+Eina_List *efreet_cache_icon_theme_list(void);
+
+Efreet_Cache_Hash *efreet_cache_util_hash_string(const char *key);
+Efreet_Cache_Hash *efreet_cache_util_hash_array_string(const char *key);
+Efreet_Cache_Array_String *efreet_cache_util_names(const char *key);
+
+EAPI void efreet_cache_array_string_free(Efreet_Cache_Array_String *array);
+
+EAPI void efreet_hash_free(Eina_Hash *hash, Eina_Free_Cb free_cb);
+EAPI void efreet_setowner(const char *path);
+EAPI void efreet_fsetowner(int fd);
+
+EAPI extern int efreet_cache_update;
 
 /**
  * @}

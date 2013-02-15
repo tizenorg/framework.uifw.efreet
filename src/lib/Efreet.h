@@ -1,4 +1,3 @@
-/* vim: set sw=4 ts=4 sts=4 et: */
 #ifndef EFREET_H
 #define EFREET_H
 
@@ -27,15 +26,22 @@
  * @li Trash Specification
  */
 
+#include <Eina.h>
+
 #ifdef EAPI
-#undef EAPI
+# undef EAPI
 #endif
-#ifdef _MSC_VER
-# ifdef BUILDING_DLL
-#  define EAPI __declspec(dllexport)
+
+#ifdef _WIN32
+# ifdef EFL_EFREET_BUILD
+#  ifdef DLL_EXPORT
+#   define EAPI __declspec(dllexport)
+#  else
+#   define EAPI
+#  endif /* ! DLL_EXPORT */
 # else
 #  define EAPI __declspec(dllimport)
-# endif
+# endif /* ! EFL_EFREET_BUILD */
 #else
 # ifdef __GNUC__
 #  if __GNUC__ >= 4
@@ -52,6 +58,19 @@
 extern "C" {
 #endif
 
+#define EFREET_VERSION_MAJOR 1
+#define EFREET_VERSION_MINOR 8
+   
+   typedef struct _Efreet_Version
+     {
+        int major;
+        int minor;
+        int micro;
+        int revision;
+     } Efreet_Version;
+   
+   EAPI extern Efreet_Version *efreet_version;
+   
 #include "efreet_base.h"
 #include "efreet_ini.h"
 #include "efreet_icon.h"
@@ -60,8 +79,26 @@ extern "C" {
 #include "efreet_utils.h"
 #include "efreet_uri.h"
 
+/**
+ * @return Value > @c 0 if the initialization was successful, @c 0 otherwise.
+ * @brief Initializes the Efreet system
+ */
 EAPI int efreet_init(void);
+
+/**
+ * @return The number of times the init function has been called minus the
+ * corresponding init call.
+ * @brief Shuts down Efreet if a balanced number of init/shutdown calls have
+ * been made
+ */
 EAPI int efreet_shutdown(void);
+
+/**
+ * @brief Resets language dependent variables and resets language dependent
+ * caches This must be called whenever the locale is changed.
+ * @since 1.7
+ */
+EAPI void efreet_lang_reset(void);
 
 #ifdef __cplusplus
 }

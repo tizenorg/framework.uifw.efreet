@@ -1,16 +1,22 @@
 Source: efreet
 Section: libs
 Priority: optional
-Maintainer: Falko Schmidt <falko@alphagemini.org>
-Build-Depends: debhelper (>= 6), cdbs, libecore-dev, doxygen
-Standards-Version: 3.7.3
+Maintainer: Jaehwan Kim <jae.hwan.kim@samsung.com>,
+ Wonguk Jeong <wonguk.jeong@samsung.com>,
+ Juyung Seo <juyung.seo@samsung.com>,
+ Myoungwoon Kim <myoungwoon.kim@samsung.com>,
+ Mike McCormack <mj.mccormack@samsung.com>,
+ Jeonghyun Yun <jh0506.yun@samsung.com>
+Uploaders: Doyoun Kang <doyoun.kang@samsung.com>
+Build-Depends: debhelper (>= 6), cdbs, libecore-dev (>= 0.9.9.060+svn20100304), libeina-dev (>= 0.0.2.060+svn20100304), doxygen, pkg-config, libtool
+Standards-Version: 3.8.1
 Homepage: http://www.enlightenment.org
 
-Package: libefreet0
+Package: libefreet
 Architecture: any
-Depends: ${shlibs:Depends}
-Provides: libefreet
-Recommends: menu-xdg
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Conflicts: libefreet0
+Provides: libefreet0
 Description: Library that implements freedesktop.org specs for use with E17/EFL
  An implementation of several specifications from freedesktop.org intended for
  use in Enlightenment DR17 (e17) and other applications using the Enlightenment
@@ -27,8 +33,8 @@ Description: Library that implements freedesktop.org specs for use with E17/EFL
 Package: libefreet-dev
 Section: libdevel
 Architecture: any
-Depends: libefreet0 (= ${binary:Version}), libecore-dev
-Provides: libefreet0-dev
+Depends: ${misc:Depends}, libefreet (= ${binary:Version}), libecore-dev (>= 0.9.9.060+svn20100304), libeina-dev
+Suggests: libefreet-doc
 Description: Development files for libefreet and libefreet-mime
  An implementation of several specifications from freedesktop.org intended for
  use in Enlightenment DR17 (e17) and other applications using the Enlightenment
@@ -43,8 +49,9 @@ Description: Development files for libefreet and libefreet-mime
 
 Package: libefreet-doc
 Section: doc
+Depends: ${misc:Depends}
 Architecture: any
-Provides: libefreet0-doc
+Enhances: libefreet-dev
 Description: libefreet and libfreet-mime API documentation
  An implementation of several specifications from freedesktop.org intended for
  use in Enlightenment DR17 (e17) and other applications using the Enlightenment
@@ -57,3 +64,19 @@ Description: libefreet and libfreet-mime API documentation
  .
  This package contains HTML documentation for development with libefreet and
  libefreet-mime.
+
+Package: libefreet-dbg
+Section: debug
+Architecture: any
+Depends: ${misc:Depends}, libefreet (= ${binary:Version})
+Description: Development files for libefreet and libefreet-mime
+ An implementation of several specifications from freedesktop.org intended for
+ use in Enlightenment DR17 (e17) and other applications using the Enlightenment
+ Foundation Libraries (EFL). Currently, the following specifications are
+ included:
+  - Base Directory
+  - Desktop Entry
+  - Icon Theme
+  - Menu
+ .
+ This package is debug package

@@ -1,4 +1,3 @@
-/* vim: set sw=4 ts=4 sts=4 et: */
 #ifndef EFREET_XML_H
 #define EFREET_XML_H
 
@@ -37,16 +36,16 @@ typedef struct Efreet_Xml Efreet_Xml;
  */
 struct Efreet_Xml
 {
-    char *text;                         /**< The XML text for this node */
+    const char *text;                   /**< The XML text for this node */
     const char *tag;                    /**< The tag for this node */
 
     Efreet_Xml_Attribute **attributes;  /**< The attributes for this node */
 
-    Ecore_DList *children;               /**< Child nodes */
+    Eina_List *children;               /**< Child nodes */
 };
 
 int efreet_xml_init(void);
-int efreet_xml_shutdown(void);
+void efreet_xml_shutdown(void);
 
 Efreet_Xml *efreet_xml_new(const char *file);
 void efreet_xml_del(Efreet_Xml *xml);
