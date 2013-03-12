@@ -1,15 +1,24 @@
-/* vim: set sw=4 ts=4 sts=4 et: */
+#ifdef HAVE_CONFIG_H
+# include <config.h>
+#endif
+
+#include <ctype.h>
+
+#ifndef _POSIX_HOST_NAME_MAX
+#define _POSIX_HOST_NAME_MAX 255
+#endif
+
+#ifdef HAVE_EVIL
+# include <Evil.h>
+#endif
+
+/* define macros and variable for using the eina logging system  */
+#define EFREET_MODULE_LOG_DOM /* no logging in this file */
+
 #include "Efreet.h"
 #include "efreet_private.h"
 
 
-/**
- * @param full_uri: a valid uri string to parse
- * @return Return The corresponding Efreet_Uri structure. Or NULL on errors.
- * @brief Read a single uri and return an Efreet_Uri struct. If there's no
- * hostname in the uri then the hostname parameter will be NULL. All the uri
- * escaped chars will be converted to normal.
- */
 EAPI Efreet_Uri *
 efreet_uri_decode(const char *full_uri)
 {
@@ -17,6 +26,8 @@ efreet_uri_decode(const char *full_uri)
     const char *p;
     char protocol[64], hostname[_POSIX_HOST_NAME_MAX], path[PATH_MAX];
     int i = 0;
+
+    EINA_SAFETY_ON_NULL_RETURN_VAL(full_uri, NULL);
 
     /* An uri should be in the form <protocol>://<hostname>/<path> */
     if (!strstr(full_uri, "://")) return NULL;
@@ -60,22 +71,13 @@ efreet_uri_decode(const char *full_uri)
     uri = NEW(Efreet_Uri, 1);
     if (!uri) return NULL;
 
-    uri->protocol = ecore_string_instance(protocol);
-    uri->hostname = ecore_string_instance(hostname);
-    uri->path = ecore_string_instance(path);
+    uri->protocol = eina_stringshare_add(protocol);
+    uri->hostname = eina_stringshare_add(hostname);
+    uri->path = eina_stringshare_add(path);
 
     return uri;
 }
 
-/**
- * @param uri: Create an URI string from an Efreet_Uri struct
- * @return The string rapresentation of uri (ex: 'file:///home/my%20name')
- * @brief Get the string rapresentation of the given uri struct escaping
- * illegal caracters. Remember to free the string with ecore_string_release()
- * when you don't need it anymore.
- * @note The resulting string will contain the protocol and the path but not
- * the hostname, as many apps doesn't handle it.
- */
 EAPI const char *
 efreet_uri_encode(Efreet_Uri *uri)
 {
@@ -83,7 +85,10 @@ efreet_uri_encode(Efreet_Uri *uri)
     const char *p;
     int i;
 
-    if (!uri || !uri->path || !uri->protocol) return NULL;
+    EINA_SAFETY_ON_NULL_RETURN_VAL(uri, NULL);
+    EINA_SAFETY_ON_NULL_RETURN_VAL(uri->path, NULL);
+    EINA_SAFETY_ON_NULL_RETURN_VAL(uri->protocol, NULL);
+
     memset(dest, 0, PATH_MAX * 3 + 4);
     snprintf(dest, strlen(uri->protocol) + 4, "%s://", uri->protocol);
 
@@ -94,22 +99,19 @@ efreet_uri_encode(Efreet_Uri *uri)
             dest[i] = *p;
         else
         {
-            snprintf(&(dest[i]), 4, "%%%02X", *p);
+            snprintf(&(dest[i]), 4, "%%%02X", (unsigned char) *p);
             i += 2;
         }
     }
 
-    return ecore_string_instance(dest);
+    return eina_stringshare_add(dest);
 }
 
-/**
- * @param uri: The uri to free
- * @brief Free the given uri structure.
- */
 EAPI void
 efreet_uri_free(Efreet_Uri *uri)
 {
     if (!uri) return;
+
     IF_RELEASE(uri->protocol);
     IF_RELEASE(uri->path);
     IF_RELEASE(uri->hostname);

@@ -1,17 +1,45 @@
-/* vim: set sw=4 ts=4 sts=4 et: */
+#ifdef HAVE_CONFIG_H
+# include <config.h>
+#endif
+
+#undef alloca
+#ifdef HAVE_ALLOCA_H
+# include <alloca.h>
+#elif defined __GNUC__
+# define alloca __builtin_alloca
+#elif defined _AIX
+# define alloca __alloca
+#elif defined _MSC_VER
+# include <malloc.h>
+# define alloca _alloca
+#else
+# include <stddef.h>
+# ifdef  __cplusplus
+extern "C"
+# endif
+void *alloca (size_t);
+#endif
+
+#include <ctype.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#include <sys/mman.h>
+
+#include <Ecore_File.h>
+
+/* define macros and variable for using the eina logging system  */
+#define EFREET_MODULE_LOG_DOM _efreet_ini_log_dom
+static int _efreet_ini_log_dom = -1;
+
 #include "Efreet.h"
 #include "efreet_private.h"
 
-static Ecore_Hash *efreet_ini_parse(const char *file);
-static char *efreet_ini_unescape(const char *str);
-
-static void efreet_ini_section_save(Ecore_Hash_Node *node, FILE *f);
-static void efreet_ini_value_save(Ecore_Hash_Node *node, FILE *f);
-
-/**
- * The number of times the Ini subsytem has been initialized
- */
-static int init = 0;
+static Eina_Hash *efreet_ini_parse(const char *file);
+static const char *efreet_ini_unescape(const char *str) EINA_ARG_NONNULL(1);
+static Eina_Bool
+efreet_ini_section_save(const Eina_Hash *hash, const void *key, void *data, void *fdata);
+static Eina_Bool
+efreet_ini_value_save(const Eina_Hash *hash, const void *key, void *data, void *fdata);
 
 /**
  * @internal
@@ -21,9 +49,14 @@ static int init = 0;
 int
 efreet_ini_init(void)
 {
-    if (init++) return init;
-    if (!ecore_string_init()) return --init;
-    return init;
+    _efreet_ini_log_dom = eina_log_domain_register
+      ("efreet_ini", EFREET_DEFAULT_LOG_COLOR);
+    if (_efreet_ini_log_dom < 0)
+    {
+        EINA_LOG_ERR("Efreet: Could not create a log domain for efreet_ini");
+        return 0;
+    }
+    return 1;
 }
 
 /**
@@ -31,21 +64,13 @@ efreet_ini_init(void)
  * @returns the number of initializations left for this system
  * @brief Attempts to shut down the subsystem if nothing else is using it
  */
-int
+void
 efreet_ini_shutdown(void)
 {
-    if (--init) return init;
-    ecore_string_shutdown();
-    return init;
+    eina_log_domain_unregister(_efreet_ini_log_dom);
+    _efreet_ini_log_dom = -1;
 }
 
-/**
- * @param file: The file to parse
- * @return Returns a new Efreet_Ini structure initialized with the contents
- * of @a file, or NULL on memory allocation failure
- * @brief Creates and initializes a new Ini structure with the contents of
- * @a file, or NULL on failure
- */
 EAPI Efreet_Ini *
 efreet_ini_new(const char *file)
 {
@@ -65,18 +90,20 @@ efreet_ini_new(const char *file)
 /**
  * @internal
  * @param file The file to parse
- * @return Returns an Ecore_Hash with the contents of @a file, or NULL if the
+ * @return Returns an Eina_Hash with the contents of @a file, or NULL if the
  *         file fails to parse or if the file doesn't exist
- * @brief Parses the ini file @a file into an Ecore_Hash
+ * @brief Parses the ini file @a file into an Eina_Hash
  */
-static Ecore_Hash *
+static Eina_Hash *
 efreet_ini_parse(const char *file)
 {
     const char *buffer, *line_start;
     FILE *f;
-    Ecore_Hash *data, *section = NULL;
+    Eina_Hash *data, *section = NULL;
     struct stat file_stat;
     int line_length, left;
+
+    if (!file) return NULL;
 
     f = fopen(file, "rb");
     if (!f) return NULL;
@@ -93,6 +120,9 @@ efreet_ini_parse(const char *file)
     }
 
     left = file_stat.st_size;
+    /* let's make mmap safe and just get 0 pages for IO erro */
+    eina_mmap_safety_enabled_set(EINA_TRUE);
+
     buffer = mmap(NULL, left, PROT_READ, MAP_SHARED, fileno(f), 0);
     if (buffer == MAP_FAILED)
     {
@@ -100,9 +130,7 @@ efreet_ini_parse(const char *file)
         return NULL;
     }
 
-    data = ecore_hash_new(ecore_str_hash, ecore_str_compare);
-    ecore_hash_free_key_cb_set(data, ECORE_FREE_CB(ecore_string_release));
-    ecore_hash_free_value_cb_set(data, ECORE_FREE_CB(ecore_hash_destroy));
+    data = eina_hash_string_small_new(EINA_FREE_CB(eina_hash_free));
 
     line_start = buffer;
     while (left > 0)
@@ -110,8 +138,8 @@ efreet_ini_parse(const char *file)
         int sep;
 
         /* find the end of line */
-        for (line_length = 0; 
-                (line_length < left) && 
+        for (line_length = 0;
+                (line_length < left) &&
                 (line_start[line_length] != '\n'); line_length++)
             ;
 
@@ -123,9 +151,9 @@ efreet_ini_parse(const char *file)
         }
 
         /* skip empty lines and comments */
-        if ((line_length == 0) || (line_start[0] == '\r') || 
+        if ((line_length == 0) || (line_start[0] == '\r') ||
                 (line_start[0] == '\n') || (line_start[0] == '#') ||
-                (line_start[0] == '\0')) 
+                (line_start[0] == '\0'))
             goto next_line;
 
         /* new section */
@@ -134,14 +162,13 @@ efreet_ini_parse(const char *file)
             int header_length;
 
             /* find the ']' */
-            for (header_length = 1; 
-                    (header_length < line_length) && 
+            for (header_length = 1;
+                    (header_length < line_length) &&
                     (line_start[header_length] != ']'); ++header_length)
                 ;
 
             if (line_start[header_length] == ']')
             {
-                Ecore_Hash *old;
                 const char *header;
 
                 header = alloca(header_length * sizeof(unsigned char));
@@ -150,62 +177,56 @@ efreet_ini_parse(const char *file)
                 memcpy((char*)header, line_start + 1, header_length - 1);
                 ((char*)header)[header_length - 1] = '\0';
 
-                section = ecore_hash_new(ecore_str_hash, ecore_str_compare);
-                ecore_hash_free_key_cb_set(section,
-                            ECORE_FREE_CB(ecore_string_release));
-                ecore_hash_free_value_cb_set(section, ECORE_FREE_CB(free));
+                section = eina_hash_string_small_new(EINA_FREE_CB(eina_stringshare_del));
 
-                old = ecore_hash_remove(data, header);
-//                if (old) printf("[efreet] Warning: duplicate section '%s' "
-  //                              "in file '%s'\n", header, file);
+                eina_hash_del_by_key(data, header);
+//                if (old) INF("[efreet] Warning: duplicate section '%s' "
+  //                              "in file '%s'", header, file);
 
-                IF_FREE_HASH(old);
-                ecore_hash_set(data, (void *)ecore_string_instance(header),
-                                section);
+                eina_hash_add(data, header, section);
             }
             else
             {
                 /* invalid file - skip line? or refuse to parse file? */
                 /* just printf for now till we figure out what to do */
-//                printf("Invalid file (%s) (missing ] on group name)\n", file);
+//                ERR("Invalid file (%s) (missing ] on group name)", file);
             }
             goto next_line;
         }
 
-        if (section == NULL)
+        if (!section)
         {
-//            printf("Invalid file (%s) (missing section)\n", file);
-            goto next_line;
+            INF("Invalid file (%s) (missing section)", file);
+            goto error;
         }
 
         /* find for '=' */
         for (sep = 0; (sep < line_length) && (line_start[sep] != '='); ++sep)
             ;
 
-        if (sep < line_length)
+        if (sep < line_length && line_start[sep] == '=')
         {
-            const char *key, *value;
-            char *old;
+            char *key, *value;
             int key_end, value_start, value_end;
 
             /* trim whitespace from end of key */
-            for (key_end = sep - 1; 
+            for (key_end = sep - 1;
                     (key_end > 0) && isspace(line_start[key_end]); --key_end)
                 ;
 
             if (!isspace(line_start[key_end])) key_end++;
 
             /* trim whitespace from start of value */
-            for (value_start = sep + 1; 
-                    (value_start < line_length) && 
-                    isspace(line_start[value_start]); ++value_start)
+            for (value_start = sep + 1;
+                 (value_start < line_length) &&
+                 isspace(line_start[value_start]); ++value_start)
                 ;
 
             /* trim \n off of end of value */
-            for (value_end = line_length; 
-                    (value_end > value_start) &&
-                    ((line_start[value_end] == '\n') ||
-                        (line_start[value_end] == '\r')); --value_end)
+            for (value_end = line_length;
+                 (value_end > value_start) &&
+                 ((line_start[value_end] == '\n') ||
+                  (line_start[value_end] == '\r')); --value_end)
                 ;
 
             if (line_start[value_end] != '\n'
@@ -214,36 +235,34 @@ efreet_ini_parse(const char *file)
                 value_end++;
 
             /* make sure we have a key. blank values are allowed */
-            if (key_end == 0)
+            if (key_end <= 0)
             {
                 /* invalid file... */
-//                printf("Invalid file (%s) (invalid key=value pair)\n", file);
+//                INF("Invalid file (%s) (invalid key=value pair)", file);
 
                 goto next_line;
             }
 
-            key = alloca((key_end + 1) * sizeof(unsigned char));
-            value = alloca((value_end - value_start + 1) * sizeof(unsigned char));
+            key = alloca(key_end + 1);
+            value = alloca(value_end - value_start + 1);
             if (!key || !value) goto next_line;
 
-            memcpy((char*)key, line_start, key_end);
-            ((char*)key)[key_end] = '\0';
+            memcpy(key, line_start, key_end);
+            key[key_end] = '\0';
 
-            memcpy((char*)value, line_start + value_start, 
+            memcpy(value, line_start + value_start,
                     value_end - value_start);
-            ((char*)value)[value_end - value_start] = '\0';
+            value[value_end - value_start] = '\0';
 
-            old = ecore_hash_remove(section, key);
-            IF_FREE(old);
-
-            ecore_hash_set(section, (void *)ecore_string_instance(key),
-                           efreet_ini_unescape(value));
+            eina_hash_del_by_key(section, key);
+            eina_hash_add(section, key, efreet_ini_unescape(value));
         }
-//        else
-//        {
-//            /* invalid file... */
-//            printf("Invalid file (%s) (missing = from key=value pair)\n", file);
-//        }
+        else
+        {
+            /* invalid file... */
+            INF("Invalid file (%s) (missing = from key=value pair)", file);
+            goto error;
+        }
 
 next_line:
         left -= line_length + 1;
@@ -252,14 +271,19 @@ next_line:
     munmap((char*) buffer, file_stat.st_size);
     fclose(f);
 
+#if 0
+    if (!eina_hash_population(data))
+    {
+        eina_hash_free(data);
+        return NULL;
+    }
+#endif
     return data;
+error:
+    if (data) eina_hash_free(data);
+    return NULL;
 }
 
-/**
- * @param ini: The Efreet_Ini to work with
- * @return Returns no value
- * @brief Frees the given Efree_Ini structure.
- */
 EAPI void
 efreet_ini_free(Efreet_Ini *ini)
 {
@@ -269,111 +293,87 @@ efreet_ini_free(Efreet_Ini *ini)
     FREE(ini);
 }
 
-/**
- * @param ini: The Efreet_Ini to work with
- * @param file: The file to load
- * @return Returns no value
- * @brief Saves the given Efree_Ini structure.
- */
 EAPI int
 efreet_ini_save(Efreet_Ini *ini, const char *file)
 {
+    char *dir;
     FILE *f;
-    if (!ini || !ini->data) return 0;
 
+    EINA_SAFETY_ON_NULL_RETURN_VAL(ini, 0);
+    EINA_SAFETY_ON_NULL_RETURN_VAL(ini->data, 0);
+    EINA_SAFETY_ON_NULL_RETURN_VAL(file, 0);
+
+    dir = ecore_file_dir_get(file);
+    if (!ecore_file_mkpath(dir))
+    {
+        free(dir);
+        return 0;
+    }
+    free(dir);
     f = fopen(file, "wb");
     if (!f) return 0;
-    ecore_hash_for_each_node(ini->data, ECORE_FOR_EACH(efreet_ini_section_save), f);
+    eina_hash_foreach(ini->data, efreet_ini_section_save, f);
     fclose(f);
 
     return 1;
 }
 
-/**
- * @param ini: The Efreet_Ini to work with
- * @param section: The section of the ini file we want to get values from
- * @return Returns 1 if the section exists, otherwise 0
- * @brief Sets the current working section of the ini file to @a section
- */
 EAPI int
 efreet_ini_section_set(Efreet_Ini *ini, const char *section)
 {
-    if (!ini || !ini->data || !section) return 0;
+    EINA_SAFETY_ON_NULL_RETURN_VAL(ini, 0);
+    EINA_SAFETY_ON_NULL_RETURN_VAL(ini->data, 0);
+    EINA_SAFETY_ON_NULL_RETURN_VAL(section, 0);
 
-    ini->section = ecore_hash_get(ini->data, section);
+    ini->section = eina_hash_find(ini->data, section);
     return (ini->section ? 1 : 0);
 }
 
-/**
- * @param ini: The Efreet_Ini to work with
- * @param section: The section of the ini file we want to add
- * @return Returns no value
- * @brief Adds a new working section of the ini file to @a section
- */
 EAPI void
 efreet_ini_section_add(Efreet_Ini *ini, const char *section)
 {
-    Ecore_Hash *hash;
+    Eina_Hash *hash;
 
-    if (!ini || !section) return;
+    EINA_SAFETY_ON_NULL_RETURN(ini);
+    EINA_SAFETY_ON_NULL_RETURN(section);
 
     if (!ini->data)
-    {
-        ini->data = ecore_hash_new(ecore_str_hash, ecore_str_compare);
-        ecore_hash_free_key_cb_set(ini->data, ECORE_FREE_CB(ecore_string_release));
-        ecore_hash_free_value_cb_set(ini->data, ECORE_FREE_CB(ecore_hash_destroy));
-    }
-    if (ecore_hash_get(ini->data, section)) return;
+        ini->data = eina_hash_string_small_new(EINA_FREE_CB(eina_hash_free));
+    if (eina_hash_find(ini->data, section)) return;
 
-    hash = ecore_hash_new(ecore_str_hash, ecore_str_compare);
-    ecore_hash_free_key_cb_set(hash, ECORE_FREE_CB(ecore_string_release));
-    ecore_hash_free_value_cb_set(hash, ECORE_FREE_CB(free));
-    ecore_hash_set(ini->data, (void *)ecore_string_instance(section), hash);
+    hash = eina_hash_string_small_new(EINA_FREE_CB(eina_stringshare_del));
+    eina_hash_add(ini->data, section, hash);
 }
 
-/**
- * @param ini: The Efree_Ini to work with
- * @param key: The key to lookup
- * @return Returns the string associated with the given key or NULL if not
- * found.
- * @brief Retrieves the value for the given key or NULL if none found.
- */
 EAPI const char *
 efreet_ini_string_get(Efreet_Ini *ini, const char *key)
 {
-    if (!ini || !key || !ini->section) return NULL;
+    EINA_SAFETY_ON_NULL_RETURN_VAL(ini, NULL);
+    EINA_SAFETY_ON_NULL_RETURN_VAL(ini->section, NULL);
+    EINA_SAFETY_ON_NULL_RETURN_VAL(key, NULL);
 
-    return ecore_hash_get(ini->section, key);
+    return eina_hash_find(ini->section, key);
 }
 
-/**
- * @param ini: The Efree_Ini to work with
- * @param key: The key to use
- * @param value: The value to set
- * @return Returns no value
- * @brief Sets the value for the given key
- */
 EAPI void
 efreet_ini_string_set(Efreet_Ini *ini, const char *key, const char *value)
 {
-    if (!ini || !key || !ini->section) return;
+    EINA_SAFETY_ON_NULL_RETURN(ini);
+    EINA_SAFETY_ON_NULL_RETURN(ini->section);
+    EINA_SAFETY_ON_NULL_RETURN(key);
 
-    ecore_hash_set(ini->section, (void *)ecore_string_instance(key), strdup(value));
+    eina_hash_del_by_key(ini->section, key);
+    eina_hash_add(ini->section, key, eina_stringshare_add(value));
 }
 
-/**
- * @param ini: The Efree_Ini to work with
- * @param key: The key to lookup
- * @return Returns the integer associated with the given key or -1 if not
- * found.
- * @brief Retrieves the value for the given key or -1 if none found.
- */
 EAPI int
 efreet_ini_int_get(Efreet_Ini *ini, const char *key)
 {
     const char *str;
 
-    if (!ini || !key || !ini->section) return -1;
+    EINA_SAFETY_ON_NULL_RETURN_VAL(ini, -1);
+    EINA_SAFETY_ON_NULL_RETURN_VAL(ini->section, -1);
+    EINA_SAFETY_ON_NULL_RETURN_VAL(key, -1);
 
     str = efreet_ini_string_get(ini, key);
     if (str) return atoi(str);
@@ -381,37 +381,27 @@ efreet_ini_int_get(Efreet_Ini *ini, const char *key)
     return -1;
 }
 
-/**
- * @param ini: The Efree_Ini to work with
- * @param key: The key to use
- * @param value: The value to set
- * @return Returns no value
- * @brief Sets the value for the given key
- */
 EAPI void
 efreet_ini_int_set(Efreet_Ini *ini, const char *key, int value)
 {
     char str[12];
 
-    if (!ini || !key || !ini->section) return;
+    EINA_SAFETY_ON_NULL_RETURN(ini);
+    EINA_SAFETY_ON_NULL_RETURN(ini->section);
+    EINA_SAFETY_ON_NULL_RETURN(key);
 
     snprintf(str, 12, "%d", value);
     efreet_ini_string_set(ini, key, str);
 }
 
-/**
- * @param ini: The Efree_Ini to work with
- * @param key: The key to lookup
- * @return Returns the double associated with the given key or -1 if not
- * found.
- * @brief Retrieves the value for the given key or -1 if none found.
- */
 EAPI double
 efreet_ini_double_get(Efreet_Ini *ini, const char *key)
 {
     const char *str;
 
-    if (!ini || !key || !ini->section) return -1;
+    EINA_SAFETY_ON_NULL_RETURN_VAL(ini, -1);
+    EINA_SAFETY_ON_NULL_RETURN_VAL(ini->section, -1);
+    EINA_SAFETY_ON_NULL_RETURN_VAL(key, -1);
 
     str = efreet_ini_string_get(ini, key);
     if (str) return atof(str);
@@ -419,20 +409,15 @@ efreet_ini_double_get(Efreet_Ini *ini, const char *key)
     return -1;
 }
 
-/**
- * @param ini: The Efree_Ini to work with
- * @param key: The key to use
- * @param value: The value to set
- * @return Returns no value
- * @brief Sets the value for the given key
- */
 EAPI void
 efreet_ini_double_set(Efreet_Ini *ini, const char *key, double value)
 {
     char str[512];
     size_t len;
 
-    if (!ini || !key || !ini->section) return;
+    EINA_SAFETY_ON_NULL_RETURN(ini);
+    EINA_SAFETY_ON_NULL_RETURN(ini->section);
+    EINA_SAFETY_ON_NULL_RETURN(key);
 
     snprintf(str, 512, "%.6f", value);
     len = strlen(str) - 1;
@@ -441,18 +426,14 @@ efreet_ini_double_set(Efreet_Ini *ini, const char *key, double value)
     efreet_ini_string_set(ini, key, str);
 }
 
-/**
- * @param ini: The ini struct to work with
- * @param key: The key to search for
- * @return Returns 1 if the boolean is true, 0 otherwise
- * @brief Retrieves the boolean value at key @a key from the ini @a ini
- */
 EAPI unsigned int
 efreet_ini_boolean_get(Efreet_Ini *ini, const char *key)
 {
     const char *str;
 
-    if (!ini || !key || !ini->section) return 0;
+    EINA_SAFETY_ON_NULL_RETURN_VAL(ini, 0);
+    EINA_SAFETY_ON_NULL_RETURN_VAL(ini->section, 0);
+    EINA_SAFETY_ON_NULL_RETURN_VAL(key, 0);
 
     str = efreet_ini_string_get(ini, key);
     if (str && !strcmp("true", str)) return 1;
@@ -460,29 +441,17 @@ efreet_ini_boolean_get(Efreet_Ini *ini, const char *key)
     return 0;
 }
 
-/**
- * @param ini: The ini struct to work with
- * @param key: The key to use
- * @param value: The value to set
- * @return Returns no value
- * @brief Sets the value for the given key
- */
 EAPI void
 efreet_ini_boolean_set(Efreet_Ini *ini, const char *key, unsigned int value)
 {
-    if (!ini || !key || !ini->section) return;
+    EINA_SAFETY_ON_NULL_RETURN(ini);
+    EINA_SAFETY_ON_NULL_RETURN(ini->section);
+    EINA_SAFETY_ON_NULL_RETURN(key);
 
     if (value) efreet_ini_string_set(ini, key, "true");
     else efreet_ini_string_set(ini, key, "false");
 }
 
-/**
- * @param ini: The ini struct to work with
- * @param key: The key to search for
- * @return Returns the utf8 encoded string associated with @a key, or NULL
- *         if none found
- * @brief Retrieves the utf8 encoded string associated with @a key in the current locale or NULL if none found
- */
 EAPI const char *
 efreet_ini_localestring_get(Efreet_Ini *ini, const char *key)
 {
@@ -492,7 +461,9 @@ efreet_ini_localestring_get(Efreet_Ini *ini, const char *key)
     int maxlen = 5; /* _, @, [, ] and \0 */
     int found = 0;
 
-    if (!ini || !key || !ini->section) return NULL;
+    EINA_SAFETY_ON_NULL_RETURN_VAL(ini, NULL);
+    EINA_SAFETY_ON_NULL_RETURN_VAL(ini->section, NULL);
+    EINA_SAFETY_ON_NULL_RETURN_VAL(key, NULL);
 
     lang = efreet_lang_get();
     country = efreet_lang_country_get();
@@ -503,7 +474,7 @@ efreet_ini_localestring_get(Efreet_Ini *ini, const char *key)
     if (country) maxlen += strlen(country);
     if (modifier) maxlen += strlen(modifier);
 
-    buf = malloc(maxlen * sizeof(char));
+    buf = alloca(maxlen);
 
     if (lang && modifier && country)
     {
@@ -536,18 +507,9 @@ efreet_ini_localestring_get(Efreet_Ini *ini, const char *key)
     if (!found)
         val = efreet_ini_string_get(ini, key);
 
-    FREE(buf);
-
     return val;
 }
 
-/**
- * @param ini: The ini struct to work with
- * @param key: The key to use
- * @param value: The value to set
- * @return Returns no value
- * @brief Sets the value for the given key
- */
 EAPI void
 efreet_ini_localestring_set(Efreet_Ini *ini, const char *key, const char *value)
 {
@@ -555,7 +517,9 @@ efreet_ini_localestring_set(Efreet_Ini *ini, const char *key, const char *value)
     char *buf;
     int maxlen = 5; /* _, @, [, ] and \0 */
 
-    if (!ini || !key || !ini->section) return;
+    EINA_SAFETY_ON_NULL_RETURN(ini);
+    EINA_SAFETY_ON_NULL_RETURN(ini->section);
+    EINA_SAFETY_ON_NULL_RETURN(key);
 
     lang = efreet_lang_get();
     country = efreet_lang_country_get();
@@ -566,7 +530,7 @@ efreet_ini_localestring_set(Efreet_Ini *ini, const char *key, const char *value)
     if (country) maxlen += strlen(country);
     if (modifier) maxlen += strlen(modifier);
 
-    buf = malloc(maxlen * sizeof(char));
+    buf = alloca(maxlen);
 
     if (lang && modifier && country)
         snprintf(buf, maxlen, "%s[%s_%s@%s]", key, lang, country, modifier);
@@ -580,7 +544,16 @@ efreet_ini_localestring_set(Efreet_Ini *ini, const char *key, const char *value)
         return;
 
     efreet_ini_string_set(ini, buf, value);
-    FREE(buf);
+}
+
+EAPI void
+efreet_ini_key_unset(Efreet_Ini *ini, const char *key)
+{
+    EINA_SAFETY_ON_NULL_RETURN(ini);
+    EINA_SAFETY_ON_NULL_RETURN(ini->section);
+    EINA_SAFETY_ON_NULL_RETURN(key);
+
+    eina_hash_del_by_key(ini->section, key);
 }
 
 /**
@@ -588,19 +561,18 @@ efreet_ini_localestring_set(Efreet_Ini *ini, const char *key, const char *value)
  * @return An allocated unescaped string
  * @brief Unescapes backslash escapes in a string
  */
-static char *
+static const char *
 efreet_ini_unescape(const char *str)
 {
     char *buf, *dest;
     const char *p;
 
-    if (!str) return NULL;
-    if (!strchr(str, '\\')) return strdup(str);
-    buf = malloc(strlen(str) + 1);
+    if (!strchr(str, '\\')) return eina_stringshare_add(str);
+    buf = alloca(strlen(str) + 1);
 
     p = str;
     dest = buf;
-    while(*p)
+    while (*p)
     {
         if ((*p == '\\') && (p[1] != '\0'))
         {
@@ -634,18 +606,24 @@ efreet_ini_unescape(const char *str)
     }
 
     *(dest) = '\0';
-    return buf;
+    return eina_stringshare_add(buf);
 }
 
-static void
-efreet_ini_section_save(Ecore_Hash_Node *node, FILE *f)
+static Eina_Bool
+efreet_ini_section_save(const Eina_Hash *hash __UNUSED__, const void *key, void *value, void *fdata)
 {
-    fprintf(f, "[%s]\n", (char *)node->key);
-    ecore_hash_for_each_node(node->value, ECORE_FOR_EACH(efreet_ini_value_save), f);
+    FILE *f = fdata;
+
+    fprintf(f, "[%s]\n", (char *)key);
+    eina_hash_foreach(value, efreet_ini_value_save, f);
+    return EINA_TRUE;
 }
 
-static void
-efreet_ini_value_save(Ecore_Hash_Node *node, FILE *f)
+static Eina_Bool
+efreet_ini_value_save(const Eina_Hash *hash __UNUSED__, const void *key, void *value, void *fdata)
 {
-    fprintf(f, "%s=%s\n", (char *)node->key, (char *)node->value);
+    FILE *f = fdata;
+
+    fprintf(f, "%s=%s\n", (char *)key, (char *)value);
+    return EINA_TRUE;
 }
