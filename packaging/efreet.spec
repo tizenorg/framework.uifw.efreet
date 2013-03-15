@@ -1,7 +1,7 @@
 #sbs-git:slp/pkgs/e/efreet efreet 1.1.0+svn.68229slp2+build01 96633d447858c306751083627e503e1e3b2bb0e1
 Name:       efreet
 Summary:    FreeDesktop.Org Compatibility Library
-Version:    1.7.1+svn.77412+build01r01
+Version:    1.7.1+svn.77412slp2+build02
 Release:    1
 Group:      System/Libraries
 License:    BSD
