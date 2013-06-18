@@ -1,5 +1,5 @@
 Name:           efreet
-Version:        1.7.1+svn.77412slp2+build02
+Version:        1.7.1+svn.77412slp2+build02r01
 Release:        1
 License:        BSD
 Summary:        FreeDesktop.Org Compatibility Library
