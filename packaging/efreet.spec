@@ -46,7 +46,9 @@ make %{?_smp_mflags}
 %install
 %make_install
 mkdir -p %{buildroot}%{_datadir}/license
+mkdir -p %{buildroot}/etc/smack/accesses.d
 cp %{_builddir}/%{buildsubdir}/COPYING %{buildroot}%{_datadir}/license/%{name}
+cp %{_builddir}/%{buildsubdir}/efreet.rule %{buildroot}/etc/smack/accesses.d/efreet.rule
 
 %post -p /sbin/ldconfig
 
@@ -59,7 +61,7 @@ cp %{_builddir}/%{buildsubdir}/COPYING %{buildroot}%{_datadir}/license/%{name}
 %{_libdir}/efreet/*
 %manifest %{name}.manifest
 %{_datadir}/license/%{name}
-
+/etc/smack/accesses.d/efreet.rule
 
 %files devel
 %defattr(-,root,root,-)
