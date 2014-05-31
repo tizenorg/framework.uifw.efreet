@@ -1,0 +1,25 @@
+<manifest>
+	<define>
+		<domain name="efreet"/>
+		<request>
+			<smack request="system::homedir" type="arwxt"/>
+			<smack request="system::use_internet" type="r"/>
+			<smack request="e17::config" type="rwx"/>
+			<smack request="device::app_logging" type="w"/>
+			<smack request="device::sys_logging" type="w"/>
+		</request>
+	</define>
+	<assign>
+		<filesystem path="/usr/lib/efreet/efreet_desktop_cache_create" label="efreet" exec_label="efreet"/>
+		<filesystem path="/usr/lib/efreet/efreet_icon_cache_create" label="efreet" exec_label="efreet"/>
+		<filesystem path="/usr/bin/efreet_alloc" exec_label="none"/>
+		<filesystem path="/usr/bin/efreet_cache_test" exec_label="none"/>
+		<filesystem path="/usr/bin/efreet_icon_cache_dump" exec_label="none"/>
+		<filesystem path="/usr/bin/efreet_menu_alloc" exec_label="none"/>
+		<filesystem path="/usr/bin/efreet_spec_test" exec_label="none"/>
+		<filesystem path="/usr/bin/efreet_test" exec_label="none"/>
+	</assign>
+	<request>
+		<domain name="_"/>
+	</request>
+</manifest>
