@@ -475,6 +475,7 @@ efreet_menu_kde_legacy_init(void)
     if (!fgets(buf, sizeof(buf), f))
     {
         ERR("Error initializing KDE legacy information");
+        pclose(f);
         return 0;
     }
     s = buf;
