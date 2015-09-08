@@ -475,6 +475,7 @@ efreet_menu_kde_legacy_init(void)
     if (!fgets(buf, sizeof(buf), f))
     {
         ERR("Error initializing KDE legacy information");
+        pclose(f);
         return 0;
     }
     s = buf;
@@ -605,7 +606,11 @@ efreet_menu_parse(const char *path)
 
     /* split apart the filename and the path */
     internal = efreet_menu_internal_new();
-    if (!internal) return NULL;
+    if (!internal)
+    {
+        efreet_xml_del(xml);
+        return NULL;
+    }
 
     /* Set default values */
     internal->show_empty = 0;
@@ -1571,7 +1576,11 @@ efreet_menu_merge(Efreet_Menu_Internal *parent, Efreet_Xml *xml, const char *pat
     }
 
     internal = efreet_menu_internal_new();
-    if (!internal) return 0;
+    if (!internal)
+    {
+        efreet_xml_del(merge_xml);
+        return 0;
+    }
     efreet_menu_path_set(internal, path);
     efreet_menu_handle_menu(internal, merge_xml);
     efreet_menu_concatenate(parent, internal);
@@ -2003,8 +2012,8 @@ efreet_menu_handle_old(Efreet_Menu_Internal *parent, Efreet_Xml *xml)
                                      xml->text);
     if (move)
     {
-        efreet_menu_move_free(move);
         parent->moves = eina_list_remove(parent->moves, move);
+        efreet_menu_move_free(move);
     }
 #endif
 
@@ -3316,7 +3325,10 @@ efreet_menu_app_dir_scan(Efreet_Menu_Internal *internal, const char *path, const
         if (id)
             snprintf(buf2, sizeof(buf2), "%s-%s", id, fname);
         else
-            strcpy(buf2, fname);
+        {
+            strncpy(buf2, fname, PATH_MAX);
+            buf2[PATH_MAX - 1] = '\0';
+        }
 
         if (ecore_file_is_dir(info->path))
         {
@@ -3424,7 +3436,10 @@ efreet_menu_directory_dir_scan(const char *path, const char *relative_path,
         if (relative_path)
             snprintf(buf2, sizeof(buf2), "%s/%s", relative_path, fname);
         else
-            strcpy(buf2, fname);
+        {
+            strncpy(buf2, fname, PATH_MAX);
+            buf2[PATH_MAX - 1] = '\0';
+        }
 
         if (ecore_file_is_dir(info->path))
             efreet_menu_directory_dir_scan(info->path, buf2, cache);

@@ -893,7 +893,11 @@ main(int argc, char **argv)
         {
             if (!strncmp(keys[i], "__efreet", 8)) continue;
             theme = eet_data_read(theme_ef, theme_edd, keys[i]);
-            if (theme) eina_hash_direct_add(icon_themes, theme->theme.name.internal, theme);
+            if (theme)
+            {
+                theme->valid = 0;
+                eina_hash_direct_add(icon_themes, theme->theme.name.internal, theme);
+            }
         }
         free(keys);
     }
@@ -957,16 +961,16 @@ main(int argc, char **argv)
         if (theme->changed)
             changed = EINA_TRUE;
 
+        if (!icon_version)
+            icon_version = NEW(Efreet_Cache_Version, 1);
+
+        icon_version->major = EFREET_ICON_CACHE_MAJOR;
+        icon_version->minor = EFREET_ICON_CACHE_MINOR;
+
         if (theme->changed)
         {
             Eina_Hash *themes;
             Eina_Hash *icons;
-
-            if (!icon_version)
-                icon_version = NEW(Efreet_Cache_Version, 1);
-
-            icon_version->major = EFREET_ICON_CACHE_MAJOR;
-            icon_version->minor = EFREET_ICON_CACHE_MINOR;
 
             themes = eina_hash_string_superfast_new(NULL);
             icons = eina_hash_string_superfast_new(NULL);
@@ -1043,15 +1047,15 @@ main(int argc, char **argv)
     if (theme->changed)
         changed = EINA_TRUE;
 
-    if (theme->changed)
+    if (!icon_version)
+        icon_version = NEW(Efreet_Cache_Version, 1);
+
+    icon_version->major = EFREET_ICON_CACHE_MAJOR;
+    icon_version->minor = EFREET_ICON_CACHE_MINOR;
+
+   if (theme->changed)
     {
         Eina_Hash *icons;
-
-        if (!icon_version)
-            icon_version = NEW(Efreet_Cache_Version, 1);
-
-        icon_version->major = EFREET_ICON_CACHE_MAJOR;
-        icon_version->minor = EFREET_ICON_CACHE_MINOR;
 
         icons = eina_hash_string_superfast_new(NULL);
 

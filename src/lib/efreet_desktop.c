@@ -816,7 +816,7 @@ efreet_desktop_generic_fields_parse(Efreet_Desktop *desktop, Efreet_Ini *ini)
     if (val) desktop->name = strdup(val);
     else
     {
-        ERR("efreet_desktop_generic_fields_parse error: no Name or _Name fields");
+        //ERR("efreet_desktop_generic_fields_parse error: no Name or _Name fields");
         return 0;
     }
 

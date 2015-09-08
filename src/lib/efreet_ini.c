@@ -163,7 +163,7 @@ efreet_ini_parse(const char *file)
 
             /* find the ']' */
             for (header_length = 1;
-                    (header_length < line_length) &&
+                    (header_length < (line_length - 1)) &&
                     (line_start[header_length] != ']'); ++header_length)
                 ;
 
@@ -280,6 +280,8 @@ next_line:
 #endif
     return data;
 error:
+    munmap((char*) buffer, file_stat.st_size);
+    fclose(f);
     if (data) eina_hash_free(data);
     return NULL;
 }

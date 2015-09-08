@@ -4,8 +4,11 @@
  * @file efreet_base.h
  * @brief Contains the methods used to support the FDO base directory
  * specification.
- * @addtogroup Efreet_Base Efreet_Base: The XDG Base Directory Specification
- * functions
+ *
+ * @internal
+ * @defgroup Efreet_Base_Group Efreet_Base: The XDG Base Directory Specification
+ *           functions
+ * @ingroup Efreet_Group
  *
  * @{
  */

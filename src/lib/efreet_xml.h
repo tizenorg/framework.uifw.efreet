@@ -5,7 +5,10 @@
  * @internal
  * @file efreet_xml.h
  * @brief A simple and fast XML parser
- * @addtogroup Efreet_Xml Efreet_Xml: An XML parser
+ *
+ * @internal
+ * @defgroup Efreet_Xml_Group Efreet_Xml: An XML parser
+ * @ingroup Efreet_Group
  *
  * @{
  */
